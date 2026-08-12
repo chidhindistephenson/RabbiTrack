@@ -1,0 +1,83 @@
+<?php
+
+use App\Http\Controllers\Api\V1\ActivityLogController;
+use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\ExpenseController;
+use App\Http\Controllers\Api\V1\FarmController;
+use App\Http\Controllers\Api\V1\FarmInvitationController;
+use App\Http\Controllers\Api\V1\FarmMemberController;
+use App\Http\Controllers\Api\V1\FinanceReportController;
+use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\HealthEventController;
+use App\Http\Controllers\Api\V1\KindlingController;
+use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\MatingController;
+use App\Http\Controllers\Api\V1\PregnancyCheckController;
+use App\Http\Controllers\Api\V1\RabbitController;
+use App\Http\Controllers\Api\V1\SaleController;
+use App\Http\Controllers\Api\V1\TaskController;
+use App\Http\Controllers\Api\V1\WeaningController;
+use App\Http\Controllers\Api\V1\WeightRecordController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('v1')->group(function (): void {
+    Route::get('/health', HealthController::class);
+
+    Route::post('/auth/register', [AuthController::class, 'register']);
+    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/password/forgot', [AuthController::class, 'forgotPassword']);
+    Route::post('/auth/password/reset', [AuthController::class, 'resetPassword']);
+
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+        Route::get('/farms', [FarmController::class, 'index']);
+        Route::post('/farms', [FarmController::class, 'store']);
+        Route::patch('/farms/{farm}', [FarmController::class, 'update']);
+        Route::get('/farms/{farm}/summary', [FarmController::class, 'summary']);
+        Route::get('/farms/{farm}/activity', [ActivityLogController::class, 'index']);
+        Route::get('/farms/{farm}/members', [FarmMemberController::class, 'index']);
+        Route::post('/farms/{farm}/members', [FarmMemberController::class, 'store']);
+        Route::patch('/farms/{farm}/members/{member}', [FarmMemberController::class, 'update']);
+        Route::delete('/farms/{farm}/members/{member}', [FarmMemberController::class, 'destroy']);
+        Route::post('/farms/{farm}/invitations/{invitation}/resend', [FarmInvitationController::class, 'resend']);
+        Route::delete('/farms/{farm}/invitations/{invitation}', [FarmInvitationController::class, 'destroy']);
+        Route::get('/farms/{farm}/locations', [LocationController::class, 'index']);
+        Route::post('/farms/{farm}/locations', [LocationController::class, 'store']);
+        Route::get('/farms/{farm}/locations/{location}', [LocationController::class, 'show']);
+        Route::patch('/farms/{farm}/locations/{location}', [LocationController::class, 'update']);
+        Route::get('/farms/{farm}/rabbits', [RabbitController::class, 'index']);
+        Route::post('/farms/{farm}/rabbits', [RabbitController::class, 'store']);
+        Route::get('/farms/{farm}/rabbits/{rabbit}', [RabbitController::class, 'show']);
+        Route::patch('/farms/{farm}/rabbits/{rabbit}', [RabbitController::class, 'update']);
+        Route::post('/farms/{farm}/rabbits/{rabbit}/movements', [RabbitController::class, 'move']);
+        Route::get('/farms/{farm}/sales', [SaleController::class, 'index']);
+        Route::get('/farms/{farm}/sales/summary', [SaleController::class, 'summary']);
+        Route::post('/farms/{farm}/sales', [SaleController::class, 'store']);
+        Route::get('/farms/{farm}/expenses', [ExpenseController::class, 'index']);
+        Route::get('/farms/{farm}/expenses/summary', [ExpenseController::class, 'summary']);
+        Route::post('/farms/{farm}/expenses', [ExpenseController::class, 'store']);
+        Route::get('/farms/{farm}/reports/finance/monthly', [FinanceReportController::class, 'monthly']);
+        Route::get('/farms/{farm}/matings', [MatingController::class, 'index']);
+        Route::post('/farms/{farm}/matings', [MatingController::class, 'store']);
+        Route::get('/farms/{farm}/matings/{mating}', [MatingController::class, 'show']);
+        Route::delete('/farms/{farm}/matings/{mating}', [MatingController::class, 'destroy']);
+        Route::post('/farms/{farm}/matings/{mating}/pregnancy-checks', [PregnancyCheckController::class, 'store']);
+        Route::patch('/farms/{farm}/matings/{mating}/pregnancy-checks/latest', [PregnancyCheckController::class, 'reviseLatest']);
+        Route::get('/farms/{farm}/litters', [KindlingController::class, 'index']);
+        Route::get('/farms/{farm}/litters/{litter}', [KindlingController::class, 'show']);
+        Route::post('/farms/{farm}/kindlings', [KindlingController::class, 'store']);
+        Route::post('/farms/{farm}/litters/{litter}/weanings', [WeaningController::class, 'store']);
+        Route::get('/farms/{farm}/weights', [WeightRecordController::class, 'index']);
+        Route::post('/farms/{farm}/weights', [WeightRecordController::class, 'store']);
+        Route::get('/farms/{farm}/health-events', [HealthEventController::class, 'index']);
+        Route::post('/farms/{farm}/health-events', [HealthEventController::class, 'store']);
+        Route::patch('/farms/{farm}/health-events/{healthEvent}', [HealthEventController::class, 'update']);
+        Route::post('/farms/{farm}/health-events/{healthEvent}/treatments', [HealthEventController::class, 'storeTreatment']);
+        Route::get('/farms/{farm}/tasks', [TaskController::class, 'index']);
+        Route::post('/farms/{farm}/tasks', [TaskController::class, 'store']);
+        Route::get('/farms/{farm}/tasks/summary', [TaskController::class, 'summary']);
+        Route::patch('/farms/{farm}/tasks/{task}', [TaskController::class, 'update']);
+    });
+});

@@ -1,0 +1,225 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../shared/app_state.dart';
+import '../../shared/soft_list_tile.dart';
+import '../../shared/snackbars.dart';
+import '../../theme/rabbitrack_colors.dart';
+import '../auth/auth_controller.dart';
+import '../home/farm_summary_controller.dart';
+import 'task_controller.dart';
+import 'task_models.dart';
+import 'task_options.dart';
+import 'task_repository.dart';
+
+class TaskListScreen extends ConsumerWidget {
+  const TaskListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasks = ref.watch(taskListProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tasks'),
+        backgroundColor: RabbiTrackColors.forestGreen,
+        foregroundColor: RabbiTrackColors.cream,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/tasks/new'),
+        icon: const Icon(Icons.add),
+        label: const Text('Task'),
+      ),
+      body: tasks.when(
+        data: (items) {
+          if (items.isEmpty) {
+            return AppState(
+              icon: Icons.task_alt,
+              title: 'No open tasks',
+              message:
+                  'Create a task for feeding, breeding, health checks, cage work, or anything that needs follow-up.',
+              actionLabel: 'Add task',
+              actionIcon: Icons.add,
+              onAction: () => context.push('/tasks/new'),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () => ref.refresh(taskListProvider.future),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) => _TaskTile(task: items[index]),
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemCount: items.length,
+            ),
+          );
+        },
+        error: (error, stackTrace) => AppState(
+          icon: Icons.cloud_off_outlined,
+          title: 'Could not load tasks',
+          message: 'Check the API server and try again.',
+          actionLabel: 'Retry',
+          onAction: () => ref.invalidate(taskListProvider),
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+class _TaskTile extends ConsumerWidget {
+  const _TaskTile({required this.task});
+
+  final TaskSummary task;
+
+  Future<void> _complete(WidgetRef ref) async {
+    final farm = ref.read(authControllerProvider).valueOrNull?.selectedFarm;
+    if (farm == null) {
+      return;
+    }
+
+    await ref
+        .read(taskRepositoryProvider)
+        .complete(farmId: farm.id, taskId: task.id);
+
+    _refreshTasks(ref);
+  }
+
+  Future<void> _cancel(WidgetRef ref) async {
+    final farm = ref.read(authControllerProvider).valueOrNull?.selectedFarm;
+    if (farm == null) {
+      return;
+    }
+
+    await ref
+        .read(taskRepositoryProvider)
+        .cancel(farmId: farm.id, taskId: task.id);
+
+    _refreshTasks(ref);
+  }
+
+  Future<void> _reschedule(BuildContext context, WidgetRef ref) async {
+    final farm = ref.read(authControllerProvider).valueOrNull?.selectedFarm;
+    if (farm == null) {
+      return;
+    }
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.tryParse(task.dueOn) ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+    );
+
+    if (picked == null) {
+      return;
+    }
+
+    await ref
+        .read(taskRepositoryProvider)
+        .reschedule(
+          farmId: farm.id,
+          taskId: task.id,
+          dueOn: _dateString(picked),
+        );
+
+    _refreshTasks(ref);
+  }
+
+  void _refreshTasks(WidgetRef ref) {
+    ref.invalidate(taskListProvider);
+    ref.invalidate(taskSummaryProvider);
+    ref.invalidate(farmSummaryProvider);
+  }
+
+  String _dateString(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+
+    return '${date.year}-$month-$day';
+  }
+
+  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline),
+                title: const Text('Complete task'),
+                onTap: () => Navigator.of(context).pop('complete'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_repeat),
+                title: const Text('Reschedule'),
+                onTap: () => Navigator.of(context).pop('reschedule'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel_outlined),
+                title: const Text('Cancel task'),
+                onTap: () => Navigator.of(context).pop('cancel'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      if (action == 'complete') {
+        await _complete(ref);
+        if (context.mounted) {
+          showSuccessSnackBar(context, 'Task completed.');
+        }
+      } else if (action == 'reschedule' && context.mounted) {
+        await _reschedule(context, ref);
+        if (context.mounted) {
+          showSuccessSnackBar(context, 'Task rescheduled.');
+        }
+      } else if (action == 'cancel') {
+        await _cancel(ref);
+        if (context.mounted) {
+          showSuccessSnackBar(context, 'Task cancelled.');
+        }
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showErrorSnackBar(context, _errorMessageFor(action));
+      }
+    }
+  }
+
+  String _errorMessageFor(String? action) {
+    return switch (action) {
+      'complete' => 'Could not complete task. Try again.',
+      'reschedule' => 'Could not reschedule task. Try again.',
+      'cancel' => 'Could not cancel task. Try again.',
+      _ => 'Could not update task. Try again.',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SoftListTile(
+      icon: task.priority == 'critical' ? Icons.priority_high : Icons.task_alt,
+      title: task.title,
+      subtitle: [
+        taskDueLabel(task.dueOn, task.dueTime),
+        taskPriorityLabel(task.priority),
+        taskTypeLabel(task.type),
+        task.rabbitIdentifier,
+        task.locationName,
+      ].whereType<String>().join(' | '),
+      trailing: IconButton(
+        tooltip: 'Task actions',
+        onPressed: () => _showActions(context, ref),
+        icon: const Icon(Icons.more_vert),
+      ),
+    );
+  }
+}
