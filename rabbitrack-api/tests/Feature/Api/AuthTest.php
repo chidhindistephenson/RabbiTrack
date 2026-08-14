@@ -132,6 +132,36 @@ class AuthTest extends TestCase
             ->assertJsonStructure(['token']);
     }
 
+    public function test_login_email_and_username_are_case_insensitive(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'case-test@rabbitrack.test',
+            'username' => 'caseworker',
+            'password' => 'secret-password',
+        ]);
+
+        $farm = Farm::factory()->create(['name' => 'Case Farm']);
+        FarmMembership::factory()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $user->id,
+            'role' => 'worker',
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'CASE-TEST@RABBITRACK.TEST',
+            'password' => 'secret-password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.email', 'case-test@rabbitrack.test');
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'CASEWORKER',
+            'password' => 'secret-password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.email', 'case-test@rabbitrack.test');
+    }
+
     public function test_user_can_sign_in_with_google_and_receive_starter_farm(): void
     {
         $this->mock(GoogleIdTokenVerifier::class, function ($mock): void {

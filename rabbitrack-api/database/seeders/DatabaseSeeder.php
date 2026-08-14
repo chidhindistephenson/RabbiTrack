@@ -67,6 +67,12 @@ class DatabaseSeeder extends Seeder
                 'role' => 'administrator',
             ],
             [
+                'name' => 'RabbiTrack Administrator Alias',
+                'email' => 'administrator@rabbitrack.local',
+                'username' => 'administrator',
+                'role' => 'administrator',
+            ],
+            [
                 'name' => 'RabbiTrack Manager',
                 'email' => 'manager@rabbitrack.local',
                 'username' => 'manager',
@@ -82,6 +88,12 @@ class DatabaseSeeder extends Seeder
                 'name' => 'RabbiTrack Veterinarian',
                 'email' => 'vet@rabbitrack.local',
                 'username' => 'vet',
+                'role' => 'veterinarian',
+            ],
+            [
+                'name' => 'RabbiTrack Veterinarian Alias',
+                'email' => 'veterinarian@rabbitrack.local',
+                'username' => 'veterinarian',
                 'role' => 'veterinarian',
             ],
             [

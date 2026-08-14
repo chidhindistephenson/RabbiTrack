@@ -114,12 +114,12 @@ class AuthController extends Controller
             'device_name' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $login = $validated['login'];
+        $login = str($validated['login'])->trim()->lower()->toString();
 
         $user = User::query()
-            ->where('email', $login)
-            ->orWhere('username', $login)
-            ->orWhere('phone', $login)
+            ->whereRaw('LOWER(email) = ?', [$login])
+            ->orWhereRaw('LOWER(username) = ?', [$login])
+            ->orWhere('phone', $validated['login'])
             ->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
