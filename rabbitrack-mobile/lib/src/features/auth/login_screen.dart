@@ -50,6 +50,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _loginWithGoogle() async {
+    await ref.read(authControllerProvider.notifier).loginWithGoogle();
+
+    if (!mounted) {
+      return;
+    }
+
+    final authState = ref.read(authControllerProvider);
+    if (authState.hasValue && authState.value != null) {
+      context.go('/farms');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (previous, next) {
@@ -137,7 +150,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ],
         ],
         const SizedBox(height: 30),
-        const SocialAuthButtons(label: 'or login with'),
+        SocialAuthButtons(
+          label: 'or login with',
+          isLoading: authState.isLoading,
+          onGooglePressed: _loginWithGoogle,
+        ),
       ],
     );
   }

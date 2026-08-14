@@ -6,6 +6,7 @@ use App\Models\Farm;
 use App\Models\FarmInvitation;
 use App\Models\FarmMembership;
 use App\Models\User;
+use App\Services\GoogleIdTokenVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -129,6 +130,114 @@ class AuthTest extends TestCase
             ->assertJsonPath('user.farms.0.timezone', 'Africa/Harare')
             ->assertJsonPath('user.farms.0.currency', 'USD')
             ->assertJsonStructure(['token']);
+    }
+
+    public function test_user_can_sign_in_with_google_and_receive_starter_farm(): void
+    {
+        $this->mock(GoogleIdTokenVerifier::class, function ($mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('valid-google-token')
+                ->andReturn([
+                    'sub' => 'google-user-123',
+                    'email' => 'google-owner@rabbitrack.test',
+                    'name' => 'Google Owner',
+                ]);
+        });
+
+        $response = $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'valid-google-token',
+            'device_name' => 'Pixel field phone',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('token_type', 'Bearer')
+            ->assertJsonPath('user.email', 'google-owner@rabbitrack.test')
+            ->assertJsonPath('user.farms.0.role', 'owner')
+            ->assertJsonPath('user.farms.0.currency', 'USD')
+            ->assertJsonStructure(['token']);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'google-owner@rabbitrack.test',
+            'google_id' => 'google-user-123',
+        ]);
+    }
+
+    public function test_google_sign_in_accepts_pending_farm_invitation(): void
+    {
+        $owner = User::factory()->create();
+        $farm = Farm::factory()->create(['name' => 'Invited Google Farm']);
+        FarmMembership::factory()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $owner->id,
+            'role' => 'owner',
+        ]);
+        FarmInvitation::query()->create([
+            'farm_id' => $farm->id,
+            'invited_by_id' => $owner->id,
+            'email' => 'google-worker@rabbitrack.test',
+            'role' => 'worker',
+        ]);
+
+        $this->mock(GoogleIdTokenVerifier::class, function ($mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('invited-google-token')
+                ->andReturn([
+                    'sub' => 'google-worker-456',
+                    'email' => 'google-worker@rabbitrack.test',
+                    'name' => 'Google Worker',
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'invited-google-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.farms.0.id', $farm->id)
+            ->assertJsonPath('user.farms.0.role', 'worker');
+
+        $workerId = User::query()->where('email', 'google-worker@rabbitrack.test')->value('id');
+
+        $this->assertDatabaseHas('farm_memberships', [
+            'farm_id' => $farm->id,
+            'user_id' => $workerId,
+            'role' => 'worker',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('farm_invitations', [
+            'farm_id' => $farm->id,
+            'email' => 'google-worker@rabbitrack.test',
+        ]);
+        $this->assertDatabaseMissing('farms', [
+            'name' => "Google Worker's Rabbitry",
+        ]);
+    }
+
+    public function test_inactive_user_cannot_sign_in_with_google(): void
+    {
+        User::factory()->create([
+            'email' => 'inactive-google@rabbitrack.test',
+            'is_active' => false,
+        ]);
+
+        $this->mock(GoogleIdTokenVerifier::class, function ($mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('inactive-google-token')
+                ->andReturn([
+                    'sub' => 'inactive-google-789',
+                    'email' => 'inactive-google@rabbitrack.test',
+                    'name' => 'Inactive Google',
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'inactive-google-token',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('id_token');
     }
 
     public function test_existing_user_accepts_pending_invitation_on_login(): void

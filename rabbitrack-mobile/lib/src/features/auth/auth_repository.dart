@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../config/api_config.dart';
 import 'auth_models.dart';
@@ -30,6 +31,8 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 class AuthRepository {
   const AuthRepository({required this._dio, required this._secureStorage});
+
+  static Future<void>? _googleInitialize;
 
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
@@ -80,6 +83,39 @@ class AuthRepository {
         'password': password,
         'device_name': 'RabbiTrack Android',
       },
+    );
+
+    final data = response.data!;
+    final token = data['token'] as String;
+    await _secureStorage.write(key: 'auth_token', value: token);
+
+    return _sessionFromUser(
+      token: token,
+      user: data['user'] as Map<String, dynamic>,
+    );
+  }
+
+  Future<AuthSession> loginWithGoogle() async {
+    const serverClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+    if (serverClientId.isEmpty) {
+      throw StateError(
+        'Google sign-in is not configured. Build with --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-client-id.',
+      );
+    }
+
+    final signIn = GoogleSignIn.instance;
+    _googleInitialize ??= signIn.initialize(serverClientId: serverClientId);
+    await _googleInitialize;
+    final account = await signIn.authenticate();
+    final idToken = account.authentication.idToken;
+
+    if (idToken == null || idToken.isEmpty) {
+      throw StateError('Google did not return an ID token.');
+    }
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/google',
+      data: {'id_token': idToken, 'device_name': 'RabbiTrack Android'},
     );
 
     final data = response.data!;

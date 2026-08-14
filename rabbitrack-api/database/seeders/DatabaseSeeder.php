@@ -59,6 +59,63 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        $teamMembers = [
+            [
+                'name' => 'RabbiTrack Administrator',
+                'email' => 'admin@rabbitrack.local',
+                'username' => 'admin',
+                'role' => 'administrator',
+            ],
+            [
+                'name' => 'RabbiTrack Manager',
+                'email' => 'manager@rabbitrack.local',
+                'username' => 'manager',
+                'role' => 'manager',
+            ],
+            [
+                'name' => 'RabbiTrack Worker',
+                'email' => 'worker@rabbitrack.local',
+                'username' => 'worker',
+                'role' => 'worker',
+            ],
+            [
+                'name' => 'RabbiTrack Veterinarian',
+                'email' => 'vet@rabbitrack.local',
+                'username' => 'vet',
+                'role' => 'veterinarian',
+            ],
+            [
+                'name' => 'RabbiTrack Viewer',
+                'email' => 'viewer@rabbitrack.local',
+                'username' => 'viewer',
+                'role' => 'viewer',
+            ],
+        ];
+
+        foreach ($teamMembers as $member) {
+            $user = User::query()->updateOrCreate(
+                ['email' => $member['email']],
+                [
+                    'name' => $member['name'],
+                    'username' => $member['username'],
+                    'password' => Hash::make('secret-password'),
+                    'is_active' => true,
+                ],
+            );
+
+            FarmMembership::query()->updateOrCreate(
+                [
+                    'farm_id' => $farm->id,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'role' => $member['role'],
+                    'is_active' => true,
+                    'joined_at' => now(),
+                ],
+            );
+        }
+
         Location::query()->updateOrCreate(
             [
                 'farm_id' => $farm->id,

@@ -58,6 +58,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     }
   }
 
+  Future<void> _signupWithGoogle() async {
+    await ref.read(authControllerProvider.notifier).loginWithGoogle();
+
+    if (!mounted) {
+      return;
+    }
+
+    final authState = ref.read(authControllerProvider);
+    if (authState.hasValue && authState.value != null) {
+      context.go('/farms');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -157,7 +170,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           ],
         ],
         const SizedBox(height: 30),
-        const SocialAuthButtons(label: 'or signup with'),
+        SocialAuthButtons(
+          label: 'or signup with',
+          isLoading: authState.isLoading,
+          onGooglePressed: _signupWithGoogle,
+        ),
       ],
     );
   }

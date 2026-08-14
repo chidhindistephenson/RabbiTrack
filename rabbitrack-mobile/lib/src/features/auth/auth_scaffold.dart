@@ -197,9 +197,16 @@ class AuthPrimaryButton extends StatelessWidget {
 }
 
 class SocialAuthButtons extends StatelessWidget {
-  const SocialAuthButtons({super.key, required this.label});
+  const SocialAuthButtons({
+    super.key,
+    required this.label,
+    this.onGooglePressed,
+    this.isLoading = false,
+  });
 
   final String label;
+  final VoidCallback? onGooglePressed;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -224,12 +231,19 @@ class SocialAuthButtons extends StatelessWidget {
         const SizedBox(height: 22),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            _SocialCircle(label: 'G'),
-            SizedBox(width: 22),
-            _SocialCircle(label: 'f'),
-            SizedBox(width: 22),
-            _SocialCircle(icon: Icons.apple),
+          children: [
+            _SocialCircle(
+              label: 'G',
+              tooltip: 'Continue with Google',
+              onPressed: isLoading ? null : onGooglePressed,
+            ),
+            const SizedBox(width: 22),
+            const _SocialCircle(label: 'f', tooltip: 'Facebook unavailable'),
+            const SizedBox(width: 22),
+            const _SocialCircle(
+              icon: Icons.apple,
+              tooltip: 'Apple unavailable',
+            ),
           ],
         ),
       ],
@@ -238,31 +252,43 @@ class SocialAuthButtons extends StatelessWidget {
 }
 
 class _SocialCircle extends StatelessWidget {
-  const _SocialCircle({this.label, this.icon});
+  const _SocialCircle({this.label, this.icon, this.tooltip, this.onPressed});
 
   final String? label;
   final IconData? icon;
+  final String? tooltip;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: RabbiTrackColors.cream,
-      ),
-      child: Center(
-        child: icon == null
-            ? Text(
-                label!,
-                style: const TextStyle(
-                  color: RabbiTrackColors.forestGreen,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                ),
-              )
-            : Icon(icon, color: RabbiTrackColors.forestGreen, size: 28),
+    return Tooltip(
+      message: tooltip ?? '',
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Opacity(
+          opacity: onPressed == null ? 0.55 : 1,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: RabbiTrackColors.cream,
+            ),
+            child: Center(
+              child: icon == null
+                  ? Text(
+                      label!,
+                      style: const TextStyle(
+                        color: RabbiTrackColors.forestGreen,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    )
+                  : Icon(icon, color: RabbiTrackColors.forestGreen, size: 28),
+            ),
+          ),
+        ),
       ),
     );
   }

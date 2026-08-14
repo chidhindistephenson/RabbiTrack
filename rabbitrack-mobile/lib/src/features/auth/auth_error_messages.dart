@@ -3,6 +3,10 @@ import 'package:dio/dio.dart';
 import '../../shared/api_error_messages.dart';
 
 String loginErrorMessage(Object error) {
+  if (error is StateError) {
+    return error.message;
+  }
+
   if (error is! DioException) {
     return 'Something went wrong. Please try again.';
   }
@@ -24,6 +28,10 @@ String loginErrorMessage(Object error) {
 }
 
 String signupErrorMessage(Object error) {
+  if (error is StateError) {
+    return error.message;
+  }
+
   if (error is! DioException) {
     return 'Something went wrong. Please try again.';
   }

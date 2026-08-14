@@ -18,6 +18,13 @@ void main() {
     );
   });
 
+  test('loginErrorMessage surfaces local Google configuration problems', () {
+    expect(
+      loginErrorMessage(StateError('Google sign-in is not configured.')),
+      'Google sign-in is not configured.',
+    );
+  });
+
   test('isAuthConnectionProblem ignores validation errors', () {
     final error = DioException(
       requestOptions: RequestOptions(path: '/auth/login'),

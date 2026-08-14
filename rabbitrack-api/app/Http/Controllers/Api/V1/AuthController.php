@@ -7,6 +7,7 @@ use App\Models\Farm;
 use App\Models\FarmInvitation;
 use App\Models\FarmMembership;
 use App\Models\User;
+use App\Services\GoogleIdTokenVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,27 +39,7 @@ class AuthController extends Controller
         $acceptedInvitations = $this->acceptPendingInvitations($user);
 
         if ($acceptedInvitations === 0) {
-            $farm = Farm::query()->create([
-                'name' => $validated['farm_name'] ?? "{$validated['name']}'s Rabbitry",
-                'code' => $this->uniqueFarmCode($validated['name']),
-                'timezone' => 'Africa/Johannesburg',
-                'currency' => 'USD',
-                'settings' => [
-                    'gestation_days' => 31,
-                    'pregnancy_check_start_days' => 10,
-                    'pregnancy_check_end_days' => 14,
-                    'nest_box_lead_days' => 3,
-                    'weaning_days' => 35,
-                ],
-            ]);
-
-            FarmMembership::query()->create([
-                'farm_id' => $farm->id,
-                'user_id' => $user->id,
-                'role' => 'owner',
-                'is_active' => true,
-                'joined_at' => now(),
-            ]);
+            $this->createStarterFarm($user, $validated['farm_name'] ?? null);
         }
 
         $token = $user->createToken($validated['device_name'] ?? 'android-device')->plainTextToken;
@@ -68,6 +49,61 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'user' => $this->userPayload($user),
         ], 201);
+    }
+
+    public function google(Request $request, GoogleIdTokenVerifier $verifier): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_token' => ['required', 'string'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $googleUser = $verifier->verify($validated['id_token']);
+        $email = str($googleUser['email'])->lower()->toString();
+
+        $user = DB::transaction(function () use ($googleUser, $email): User {
+            $user = User::query()
+                ->where('google_id', $googleUser['sub'])
+                ->orWhere('email', $email)
+                ->first();
+
+            if (! $user) {
+                $user = User::query()->create([
+                    'name' => $googleUser['name'] ?? str($email)->before('@')->headline()->toString(),
+                    'email' => $email,
+                    'google_id' => $googleUser['sub'],
+                    'password' => Hash::make(Str::random(48)),
+                    'is_active' => true,
+                ]);
+            } else {
+                if (! $user->is_active) {
+                    throw ValidationException::withMessages([
+                        'id_token' => ['This account is not active.'],
+                    ]);
+                }
+
+                $user->forceFill([
+                    'google_id' => $user->google_id ?? $googleUser['sub'],
+                    'name' => $user->name ?: ($googleUser['name'] ?? $user->name),
+                ])->save();
+            }
+
+            $acceptedInvitations = $this->acceptPendingInvitations($user);
+
+            if ($acceptedInvitations === 0 && ! $user->memberships()->where('is_active', true)->exists()) {
+                $this->createStarterFarm($user);
+            }
+
+            return $user;
+        });
+
+        $token = $user->createToken($validated['device_name'] ?? 'android-device')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $this->userPayload($user),
+        ]);
     }
 
     public function login(Request $request): JsonResponse
@@ -247,6 +283,31 @@ class AuthController extends Controller
             });
 
         return $accepted;
+    }
+
+    private function createStarterFarm(User $user, ?string $farmName = null): void
+    {
+        $farm = Farm::query()->create([
+            'name' => $farmName ?? "{$user->name}'s Rabbitry",
+            'code' => $this->uniqueFarmCode($user->name),
+            'timezone' => 'Africa/Johannesburg',
+            'currency' => 'USD',
+            'settings' => [
+                'gestation_days' => 31,
+                'pregnancy_check_start_days' => 10,
+                'pregnancy_check_end_days' => 14,
+                'nest_box_lead_days' => 3,
+                'weaning_days' => 35,
+            ],
+        ]);
+
+        FarmMembership::query()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $user->id,
+            'role' => 'owner',
+            'is_active' => true,
+            'joined_at' => now(),
+        ]);
     }
 
     private function uniqueFarmCode(string $seed): string
