@@ -91,4 +91,10 @@ if ($LanIp) {
     Write-Host "Wireless physical phone API base: http://$LanIp`:8000/api/v1"
 }
 Write-Host "Mailpit: http://127.0.0.1:8025"
-Write-Host "Demo login: owner@rabbitrack.local / secret-password"
+Write-Host "Demo logins, password for all: secret-password"
+Write-Host "  owner@rabbitrack.local   (owner)"
+Write-Host "  admin@rabbitrack.local   (administrator)"
+Write-Host "  manager@rabbitrack.local (manager)"
+Write-Host "  worker@rabbitrack.local  (worker)"
+Write-Host "  vet@rabbitrack.local     (veterinarian)"
+Write-Host "  viewer@rabbitrack.local  (viewer)"
