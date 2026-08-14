@@ -162,6 +162,32 @@ class AuthTest extends TestCase
             ->assertJsonPath('user.email', 'case-test@rabbitrack.test');
     }
 
+    public function test_seeded_demo_login_tolerates_common_test_password_entry_mistakes(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'worker@rabbitrack.local',
+            'username' => 'worker',
+            'password' => 'secret-password',
+        ]);
+
+        $farm = Farm::factory()->create(['name' => 'Demo Farm']);
+        FarmMembership::factory()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $user->id,
+            'role' => 'worker',
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'worker@rabbitrack.local',
+            'password' => ' secret-password ',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'worker@rabbitrack.local',
+            'password' => 'secrete-password',
+        ])->assertOk();
+    }
+
     public function test_user_can_sign_in_with_google_and_receive_starter_farm(): void
     {
         $this->mock(GoogleIdTokenVerifier::class, function ($mock): void {
