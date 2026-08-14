@@ -14,6 +14,14 @@ void main() {
     expect(latestWeightDate(const []), '-');
     expect(latestWeightValue(const []), '-');
   });
+
+  test('weightRecordValueText explains litter averages', () {
+    expect(weightRecordTargetType(_weights.last), 'Litter total');
+    expect(
+      weightRecordValueText(_weights.last),
+      '3.200 kg total | 0.400 kg/kit',
+    );
+  });
 }
 
 const _weights = [
@@ -26,9 +34,11 @@ const _weights = [
   ),
   WeightSummary(
     id: 'weight-2',
-    rabbitIdentifier: 'DOE-0002',
+    litterIdentifier: 'LIT-260803-TEST',
     weighedOn: '2026-08-01',
     weightValue: '3.200',
     weightUnit: 'kg',
+    kitCount: 8,
+    averageWeightValue: '0.400',
   ),
 ];

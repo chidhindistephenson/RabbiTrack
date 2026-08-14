@@ -114,6 +114,14 @@ class FarmController extends Controller
                 'quarantined' => $farm->rabbits()
                     ->where('status', 'quarantined')
                     ->count(),
+                'pregnant_does' => $farm->rabbits()
+                    ->where('sex', 'female')
+                    ->where('status', 'pregnant')
+                    ->count(),
+                'nursing_does' => $farm->rabbits()
+                    ->where('sex', 'female')
+                    ->where('status', 'nursing')
+                    ->count(),
                 'open_tasks' => $farm->tasks()
                     ->where('status', 'open')
                     ->count(),

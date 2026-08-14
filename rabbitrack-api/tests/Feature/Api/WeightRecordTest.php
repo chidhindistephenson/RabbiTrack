@@ -44,12 +44,13 @@ class WeightRecordTest extends TestCase
         ]);
     }
 
-    public function test_member_can_record_litter_weight(): void
+    public function test_member_cannot_record_litter_weight_directly(): void
     {
         [$user, $farm] = $this->memberContext();
         $litter = Litter::factory()->create([
             'farm_id' => $farm->id,
             'identifier' => 'LIT-260803-TEST',
+            'current_live_count' => 5,
         ]);
 
         Sanctum::actingAs($user);
@@ -59,13 +60,29 @@ class WeightRecordTest extends TestCase
             'weighed_on' => '2026-08-10',
             'weight_value' => 2.750,
         ])
-            ->assertCreated()
-            ->assertJsonPath('data.litter_identifier', 'LIT-260803-TEST');
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('litter_id');
+    }
 
-        $this->assertDatabaseHas('weight_records', [
-            'litter_id' => $litter->id,
-            'weight_value' => 2.750,
+    public function test_direct_litter_weight_is_rejected_even_when_stage_is_sent(): void
+    {
+        [$user, $farm] = $this->memberContext();
+        $litter = Litter::factory()->create([
+            'farm_id' => $farm->id,
+            'current_live_count' => 5,
+            'status' => 'nursing',
         ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/weights", [
+            'litter_id' => $litter->id,
+            'stage' => 'birth',
+            'weighed_on' => '2026-08-10',
+            'weight_value' => 2.750,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('litter_id');
     }
 
     public function test_member_cannot_record_weight_for_sold_rabbit(): void

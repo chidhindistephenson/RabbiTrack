@@ -5,6 +5,7 @@ String taskTypeLabel(String type) {
     'nest_box_preparation' => 'Nest box',
     'expected_kindling' => 'Kindling',
     'weaning' => 'Weaning',
+    'kit_identification' => 'Identify/tag kits',
     _ => _sentenceCase(type),
   };
 }
@@ -35,6 +36,15 @@ String taskDueLabel(String dueOn, String? dueTime) {
   }
 
   return '$dueOn at $dueTime';
+}
+
+String taskDueFilterTitle(String filter) {
+  return switch (filter) {
+    'today' => 'Today',
+    'overdue' => 'Overdue',
+    'upcoming' => 'Upcoming',
+    _ => 'All',
+  };
 }
 
 String _sentenceCase(String value) {

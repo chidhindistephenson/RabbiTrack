@@ -17,10 +17,13 @@ class WeightRecord extends Model
         'farm_id',
         'rabbit_id',
         'litter_id',
+        'stage',
         'recorded_by_id',
         'weighed_on',
         'weight_value',
         'weight_unit',
+        'kit_count',
+        'average_weight_value',
         'method',
         'notes',
     ];
@@ -30,6 +33,7 @@ class WeightRecord extends Model
         return [
             'weighed_on' => 'date',
             'weight_value' => 'decimal:3',
+            'average_weight_value' => 'decimal:3',
         ];
     }
 

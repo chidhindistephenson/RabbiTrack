@@ -13,7 +13,7 @@ Rabbit farm management system for rabbit identification, breeding, litter, healt
 - Backend: Laravel 13, Laravel Sanctum, PostgreSQL, Redis, queues, scheduler.
 - Mobile: Flutter for Android, Riverpod, GoRouter, Drift/SQLite, Dio.
 - Admin portal: Laravel, Inertia.js, Vue.js, Tailwind CSS.
-- Local services: Docker Compose for PostgreSQL on host port `55432`, Redis, and Mailpit.
+- Local services: Docker Compose for PostgreSQL on host port `55459`, Redis, and Mailpit.
 
 ## First Milestone
 

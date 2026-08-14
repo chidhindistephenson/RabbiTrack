@@ -9,6 +9,8 @@ import '../../theme/rabbitrack_colors.dart';
 import '../auth/auth_controller.dart';
 import '../locations/location_controller.dart';
 import '../locations/location_models.dart';
+import '../litters/litter_controller.dart';
+import '../litters/litter_models.dart';
 import 'rabbit_controller.dart';
 import 'rabbit_models.dart';
 import 'rabbit_options.dart';
@@ -30,15 +32,20 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
   final _colourController = TextEditingController();
   final _weightController = TextEditingController();
   final _tagController = TextEditingController();
+  final _supplierController = TextEditingController();
+  final _acquisitionCostController = TextEditingController();
   final _notesController = TextEditingController();
+  String _originType = 'existing_stock';
   String _sex = 'female';
   String _status = 'growing';
   String _weightUnit = 'kg';
   String? _breed;
   String? _locationId;
+  String? _originLitterId;
   String? _motherId;
   String? _fatherId;
   DateTime? _dateOfBirth;
+  DateTime? _acquiredAt;
   bool _isSaving = false;
 
   @override
@@ -48,6 +55,8 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
     _colourController.dispose();
     _weightController.dispose();
     _tagController.dispose();
+    _supplierController.dispose();
+    _acquisitionCostController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -65,6 +74,7 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
     setState(() => _isSaving = true);
 
     try {
+      final originLitter = _selectedOriginLitter();
       final rabbit = await ref
           .read(rabbitRepositoryProvider)
           .create(
@@ -75,15 +85,32 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
             breed: _selectedBreed(),
             colour: _emptyToNull(_colourController.text),
             currentLocationId: _locationId,
-            dateOfBirth: _formattedDate(_dateOfBirth),
+            dateOfBirth: _originType == 'born_on_farm'
+                ? originLitter?.kindledOn
+                : _formattedDate(_dateOfBirth),
             weightValue: _emptyToNull(_weightController.text),
             weightUnit: _emptyToNull(_weightController.text) == null
                 ? null
                 : _weightUnit,
             tagOrTattoo: _emptyToNull(_tagController.text),
             notes: _emptyToNull(_notesController.text),
-            motherId: _motherId,
-            fatherId: _fatherId,
+            motherId: _originType == 'born_on_farm'
+                ? originLitter?.doeId
+                : _motherId,
+            fatherId: _originType == 'born_on_farm'
+                ? originLitter?.buckId
+                : _fatherId,
+            originType: _originType,
+            originLitterId: _originType == 'born_on_farm'
+                ? _originLitterId
+                : null,
+            supplier: _showsSourceFields
+                ? _emptyToNull(_supplierController.text)
+                : null,
+            acquiredAt: _showsSourceFields ? _formattedDate(_acquiredAt) : null,
+            acquisitionCost: _originType == 'purchased'
+                ? _emptyToNull(_acquisitionCostController.text)
+                : null,
           );
 
       ref.invalidate(rabbitListProvider);
@@ -110,6 +137,7 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
   Widget build(BuildContext context) {
     final locations = ref.watch(locationListProvider);
     final rabbits = ref.watch(rabbitParentOptionsProvider);
+    final litters = ref.watch(litterListProvider);
     final statusOptions = editableRabbitStatusesForSex(_sex);
 
     return Scaffold(
@@ -151,6 +179,130 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _originType,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Origin',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'existing_stock',
+                    child: Text('Existing stock'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'born_on_farm',
+                    child: Text('Born on this farm'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'purchased',
+                    child: Text('Purchased'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'transferred_in',
+                    child: Text('Transferred in'),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _originType = value!;
+                    _originLitterId = null;
+                    if (_originType != 'existing_stock') {
+                      _motherId = null;
+                      _fatherId = null;
+                    }
+                    if (!_showsSourceFields) {
+                      _supplierController.clear();
+                      _acquisitionCostController.clear();
+                      _acquiredAt = null;
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              if (_originType == 'born_on_farm') ...[
+                litters.when(
+                  data: (items) => _LitterOriginField(
+                    litters: items,
+                    selectedLitterId: _originLitterId,
+                    onChanged: (value) =>
+                        setState(() => _originLitterId = value),
+                  ),
+                  error: (error, stackTrace) =>
+                      const Text('Litters could not be loaded.'),
+                  loading: () => const LinearProgressIndicator(),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_showsSourceFields) ...[
+                TextFormField(
+                  controller: _supplierController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: _originType == 'purchased'
+                        ? 'Seller or supplier'
+                        : 'Previous farm or source',
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (_emptyToNull(value ?? '') == null) {
+                      return _originType == 'purchased'
+                          ? 'Enter the seller or supplier'
+                          : 'Enter the previous farm or source';
+                    }
+
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  readOnly: true,
+                  controller: TextEditingController(
+                    text: _formattedDate(_acquiredAt) ?? '',
+                  ),
+                  decoration: InputDecoration(
+                    labelText: _originType == 'purchased'
+                        ? 'Purchase date'
+                        : 'Transfer date',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      tooltip: 'Select date',
+                      onPressed: _pickAcquiredAt,
+                      icon: const Icon(Icons.calendar_today_outlined),
+                    ),
+                  ),
+                  onTap: _pickAcquiredAt,
+                ),
+                const SizedBox(height: 12),
+                if (_originType == 'purchased') ...[
+                  TextFormField(
+                    controller: _acquisitionCostController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Purchase price',
+                      prefixText: r'$ ',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      final trimmed = _emptyToNull(value ?? '');
+                      if (trimmed == null) {
+                        return null;
+                      }
+
+                      final parsed = num.tryParse(trimmed);
+                      if (parsed == null || parsed < 0) {
+                        return 'Enter a valid price';
+                      }
+
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
               TextFormField(
                 controller: _nameController,
                 textCapitalization: TextCapitalization.words,
@@ -159,23 +311,25 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                readOnly: true,
-                controller: TextEditingController(
-                  text: _formattedDate(_dateOfBirth) ?? '',
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Date of birth',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: 'Select date',
-                    onPressed: _pickDateOfBirth,
-                    icon: const Icon(Icons.calendar_today_outlined),
+              if (_originType != 'born_on_farm') ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  readOnly: true,
+                  controller: TextEditingController(
+                    text: _formattedDate(_dateOfBirth) ?? '',
                   ),
+                  decoration: InputDecoration(
+                    labelText: 'Date of birth',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      tooltip: 'Select date',
+                      onPressed: _pickDateOfBirth,
+                      icon: const Icon(Icons.calendar_today_outlined),
+                    ),
+                  ),
+                  onTap: _pickDateOfBirth,
                 ),
-                onTap: _pickDateOfBirth,
-              ),
+              ],
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _sex,
@@ -241,19 +395,23 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
                 loading: () => const LinearProgressIndicator(),
               ),
               const SizedBox(height: 12),
-              rabbits.when(
-                data: (items) => _ParentFields(
-                  rabbits: items,
-                  motherId: _motherId,
-                  fatherId: _fatherId,
-                  onMotherChanged: (value) => setState(() => _motherId = value),
-                  onFatherChanged: (value) => setState(() => _fatherId = value),
+              if (_originType == 'existing_stock') ...[
+                rabbits.when(
+                  data: (items) => _ParentFields(
+                    rabbits: items,
+                    motherId: _motherId,
+                    fatherId: _fatherId,
+                    onMotherChanged: (value) =>
+                        setState(() => _motherId = value),
+                    onFatherChanged: (value) =>
+                        setState(() => _fatherId = value),
+                  ),
+                  error: (error, stackTrace) =>
+                      const Text('Parent options could not be loaded.'),
+                  loading: () => const LinearProgressIndicator(),
                 ),
-                error: (error, stackTrace) =>
-                    const Text('Parent options could not be loaded.'),
-                loading: () => const LinearProgressIndicator(),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
+              ],
               DropdownButtonFormField<String?>(
                 initialValue: _breed,
                 isExpanded: true,
@@ -355,7 +513,9 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
                 controller: _tagController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
-                  labelText: 'Tag or tattoo',
+                  labelText: 'Existing physical mark',
+                  helperText:
+                      'Leave blank to use the assigned Rabbit ID on the animal.',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -399,6 +559,25 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
     return _breed;
   }
 
+  bool get _showsSourceFields {
+    return _originType == 'purchased' || _originType == 'transferred_in';
+  }
+
+  LitterSummary? _selectedOriginLitter() {
+    final litters = ref.read(litterListProvider).valueOrNull;
+    if (litters == null || _originLitterId == null) {
+      return null;
+    }
+
+    for (final litter in litters) {
+      if (litter.id == _originLitterId) {
+        return litter;
+      }
+    }
+
+    return null;
+  }
+
   String? _formattedDate(DateTime? value) {
     if (value == null) {
       return null;
@@ -426,6 +605,22 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
     setState(() => _dateOfBirth = picked);
   }
 
+  Future<void> _pickAcquiredAt() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _acquiredAt ?? now,
+      firstDate: DateTime(now.year - 20),
+      lastDate: now,
+    );
+
+    if (picked == null) {
+      return;
+    }
+
+    setState(() => _acquiredAt = picked);
+  }
+
   DropdownMenuItem<String?> _locationItem(FarmLocationSummary location) {
     return DropdownMenuItem(
       value: location.id,
@@ -434,6 +629,59 @@ class _RabbitCreateScreenState extends ConsumerState<RabbitCreateScreen> {
         overflow: TextOverflow.ellipsis,
       ),
     );
+  }
+}
+
+class _LitterOriginField extends StatelessWidget {
+  const _LitterOriginField({
+    required this.litters,
+    required this.selectedLitterId,
+    required this.onChanged,
+  });
+
+  final List<LitterSummary> litters;
+  final String? selectedLitterId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final convertibleLitters = litters
+        .where(
+          (litter) =>
+              litter.status == 'weaned' || litter.status == 'partially_weaned',
+        )
+        .toList();
+
+    return DropdownButtonFormField<String?>(
+      initialValue: selectedLitterId,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Litter / kindling record',
+        border: OutlineInputBorder(),
+      ),
+      items: [
+        const DropdownMenuItem(
+          value: null,
+          child: Text('Select weaned litter'),
+        ),
+        for (final litter in convertibleLitters)
+          DropdownMenuItem(
+            value: litter.id,
+            child: Text(_litterLabel(litter), overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: onChanged,
+      validator: (value) =>
+          value == null ? 'Select the litter this rabbit came from' : null,
+    );
+  }
+
+  String _litterLabel(LitterSummary litter) {
+    final buck = litter.buckIdentifier == null
+        ? ''
+        : ' x ${litter.buckIdentifier}';
+
+    return '${litter.identifier} - ${litter.doeIdentifier}$buck';
   }
 }
 

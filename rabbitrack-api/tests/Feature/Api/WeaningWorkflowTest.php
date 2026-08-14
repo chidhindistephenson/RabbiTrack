@@ -45,7 +45,17 @@ class WeaningWorkflowTest extends TestCase
         $this->assertDatabaseHas('weanings', [
             'litter_id' => $litter->id,
             'number_weaned' => 7,
+            'average_weight_value' => 0.850,
             'destination' => 'Grow-out cages',
+        ]);
+
+        $this->assertDatabaseHas('weight_records', [
+            'litter_id' => $litter->id,
+            'stage' => 'weaning',
+            'weight_value' => 5.950,
+            'kit_count' => 7,
+            'average_weight_value' => 0.850,
+            'method' => 'Weaning record',
         ]);
 
         $this->assertDatabaseHas('litters', [
@@ -59,6 +69,23 @@ class WeaningWorkflowTest extends TestCase
             'type' => 'weaning',
             'status' => 'completed',
         ]);
+
+        $this->assertDatabaseHas('tasks', [
+            'related_id' => $litter->id,
+            'type' => 'kit_identification',
+            'title' => "Identify/tag kits from {$litter->identifier}",
+            'status' => 'open',
+        ]);
+
+        $this->assertEquals(
+            '2026-09-14',
+            Task::query()
+                ->where('related_id', $litter->id)
+                ->where('type', 'kit_identification')
+                ->firstOrFail()
+                ->due_on
+                ->toDateString(),
+        );
     }
 
     public function test_non_member_cannot_record_weaning(): void

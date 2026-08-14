@@ -15,6 +15,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Doe'), findsOneWidget);
+    expect(find.text('Birth litter weight kg'), findsOneWidget);
+    expect(
+      find.text(
+        'Enter the total litter weight; average per kit is calculated.',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Doe'));
     await tester.pumpAndSettle();
@@ -48,6 +55,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('DOE-0001 x BUCK-0001'), findsOneWidget);
+    expect(find.text('Birth litter weight kg'), findsOneWidget);
     expect(find.text('Save kindling'), findsOneWidget);
   });
 }

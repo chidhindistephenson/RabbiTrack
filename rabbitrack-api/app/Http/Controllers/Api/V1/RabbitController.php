@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Farm;
+use App\Models\Litter;
 use App\Models\Location;
 use App\Models\Rabbit;
 use Illuminate\Database\QueryException;
@@ -79,6 +80,8 @@ class RabbitController extends Controller
             'current_location_id' => ['nullable', 'uuid', 'exists:locations,id'],
             'mother_id' => ['nullable', 'uuid', 'exists:rabbits,id'],
             'father_id' => ['nullable', 'uuid', 'exists:rabbits,id'],
+            'origin_type' => ['nullable', 'string', Rule::in(Rabbit::ORIGIN_TYPES)],
+            'origin_litter_id' => ['nullable', 'uuid', 'exists:litters,id'],
             'is_farm_born' => ['nullable', 'boolean'],
             'supplier' => ['nullable', 'string', 'max:160'],
             'acquired_at' => ['nullable', 'date'],
@@ -88,11 +91,11 @@ class RabbitController extends Controller
 
         $this->assertFarmOwnedReferences($farm, $validated);
         $this->assertParentReferences($farm, $validated);
+        $this->normalizeOriginAttributes($farm, $validated);
         $this->assertStatusAllowedForSex($validated['sex'], $validated['status']);
         $this->assertSoldStatusUsesSaleFlow($validated['status']);
 
         $validated['weight_unit'] = $validated['weight_unit'] ?? 'kg';
-        $validated['is_farm_born'] = $validated['is_farm_born'] ?? true;
         $shouldGenerateIdentifier = empty($validated['identifier']);
 
         $rabbit = $this->createRabbitWithRetry(
@@ -284,7 +287,12 @@ class RabbitController extends Controller
 
     private function assertFarmOwnedReferences(Farm $farm, array $validated): void
     {
-        foreach (['current_location_id' => Location::class, 'mother_id' => Rabbit::class, 'father_id' => Rabbit::class] as $field => $model) {
+        foreach ([
+            'current_location_id' => Location::class,
+            'mother_id' => Rabbit::class,
+            'father_id' => Rabbit::class,
+            'origin_litter_id' => Litter::class,
+        ] as $field => $model) {
             if (! isset($validated[$field])) {
                 continue;
             }
@@ -398,6 +406,7 @@ class RabbitController extends Controller
             'markings',
             'weight_unit',
             'tag_or_tattoo',
+            'origin_type',
             'supplier',
             'notes',
         ];
@@ -442,6 +451,52 @@ class RabbitController extends Controller
         ]);
     }
 
+    private function normalizeOriginAttributes(Farm $farm, array &$validated): void
+    {
+        $originType = $validated['origin_type'] ?? null;
+
+        if ($originType === null) {
+            $originType = array_key_exists('is_farm_born', $validated)
+                ? ($validated['is_farm_born'] ? 'born_on_farm' : 'purchased')
+                : 'existing_stock';
+        }
+
+        if ($originType === 'born_on_farm') {
+            if (empty($validated['origin_litter_id'])) {
+                throw ValidationException::withMessages([
+                    'origin_litter_id' => ['Select the litter this rabbit came from.'],
+                ]);
+            }
+
+            $litter = $farm->litters()
+                ->whereKey($validated['origin_litter_id'])
+                ->firstOrFail();
+
+            if (! in_array($litter->status, ['partially_weaned', 'weaned'], true)) {
+                throw ValidationException::withMessages([
+                    'origin_litter_id' => ['Kits can be converted after the litter has been weaned.'],
+                ]);
+            }
+
+            $validated['mother_id'] = $litter->doe_id;
+            $validated['father_id'] = $litter->buck_id;
+            $validated['date_of_birth'] = $validated['date_of_birth'] ?? $litter->kindled_on?->toDateString();
+            $validated['is_farm_born'] = true;
+            $validated['supplier'] = null;
+            $validated['acquisition_cost'] = null;
+            $validated['acquired_at'] = $validated['acquired_at'] ?? now()->toDateString();
+        } else {
+            $validated['origin_litter_id'] = null;
+            $validated['is_farm_born'] = false;
+        }
+
+        if ($originType === 'existing_stock') {
+            $validated['is_farm_born'] = $validated['is_farm_born'] ?? false;
+        }
+
+        $validated['origin_type'] = $originType;
+    }
+
     private function assertTerminalRabbitProfileIsLocked(Rabbit $rabbit): void
     {
         if (! $this->isTerminalRabbitStatus($rabbit->status)) {
@@ -478,6 +533,8 @@ class RabbitController extends Controller
             'current_location_name' => $rabbit->currentLocation?->name,
             'mother_id' => $rabbit->mother_id,
             'father_id' => $rabbit->father_id,
+            'origin_type' => $rabbit->origin_type,
+            'origin_litter_id' => $rabbit->origin_litter_id,
             'is_farm_born' => $rabbit->is_farm_born,
             'supplier' => $rabbit->supplier,
             'acquired_at' => $rabbit->acquired_at?->toDateString(),
@@ -498,6 +555,8 @@ class RabbitController extends Controller
             if ($shouldGenerateIdentifier) {
                 $attributes['identifier'] = $this->nextRabbitIdentifier($farm, $attributes['sex']);
             }
+
+            $attributes['tag_or_tattoo'] ??= $attributes['identifier'];
 
             try {
                 return DB::transaction(function () use ($request, $farm, $attributes): Rabbit {

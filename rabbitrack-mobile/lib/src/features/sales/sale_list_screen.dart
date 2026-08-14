@@ -17,10 +17,6 @@ class SaleListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isRabbitProfileView = rabbitId != null;
-    final sales = isRabbitProfileView
-        ? ref.watch(rabbitSaleListProvider(rabbitId!))
-        : ref.watch(saleListProvider);
-    final report = ref.watch(saleReportProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -35,67 +31,84 @@ class SaleListScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Sale'),
       ),
-      body: sales.when(
-        data: (items) {
-          return RefreshIndicator(
-            onRefresh: () async {
-              final refreshedReport = ref.refresh(saleReportProvider.future);
-              final refreshedSales = isRabbitProfileView
-                  ? ref.refresh(rabbitSaleListProvider(rabbitId!).future)
-                  : ref.refresh(saleListProvider.future);
+      body: SaleListContent(rabbitId: rabbitId),
+    );
+  }
+}
 
-              await refreshedReport;
-              await refreshedSales;
-            },
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
-              children: [
-                report.when(
-                  data: (summary) => _SaleReportHeader(report: summary),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                  loading: () => const _SaleReportLoading(),
-                ),
-                const SizedBox(height: 14),
-                if (items.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 36),
-                    child: AppState(
-                      icon: Icons.sell_outlined,
-                      title: isRabbitProfileView
-                          ? 'No sale record for this rabbit'
-                          : 'No sales yet',
-                      message:
-                          'Record completed rabbit sales to keep revenue and buyer history in one place.',
-                      actionLabel: 'Add sale',
-                      actionIcon: Icons.add,
-                      onAction: () => context.push(
-                        isRabbitProfileView
-                            ? '/sales/new?rabbitId=$rabbitId'
-                            : '/sales/new',
-                      ),
-                      minHeight: 260,
+class SaleListContent extends ConsumerWidget {
+  const SaleListContent({super.key, this.rabbitId});
+
+  final String? rabbitId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isRabbitProfileView = rabbitId != null;
+    final sales = isRabbitProfileView
+        ? ref.watch(rabbitSaleListProvider(rabbitId!))
+        : ref.watch(saleListProvider);
+    final report = ref.watch(saleReportProvider);
+
+    return sales.when(
+      data: (items) {
+        return RefreshIndicator(
+          onRefresh: () async {
+            final refreshedReport = ref.refresh(saleReportProvider.future);
+            final refreshedSales = isRabbitProfileView
+                ? ref.refresh(rabbitSaleListProvider(rabbitId!).future)
+                : ref.refresh(saleListProvider.future);
+
+            await refreshedReport;
+            await refreshedSales;
+          },
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+            children: [
+              report.when(
+                data: (summary) => _SaleReportHeader(report: summary),
+                error: (error, stackTrace) => const SizedBox.shrink(),
+                loading: () => const _SaleReportLoading(),
+              ),
+              const SizedBox(height: 14),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 36),
+                  child: AppState(
+                    icon: Icons.sell_outlined,
+                    title: isRabbitProfileView
+                        ? 'No sale record for this rabbit'
+                        : 'No sales yet',
+                    message:
+                        'Record completed rabbit sales to keep revenue and buyer history in one place.',
+                    actionLabel: 'Add sale',
+                    actionIcon: Icons.add,
+                    onAction: () => context.push(
+                      isRabbitProfileView
+                          ? '/sales/new?rabbitId=$rabbitId'
+                          : '/sales/new',
                     ),
-                  )
-                else
-                  for (final sale in items) ...[
-                    _SaleTile(sale: sale),
-                    const SizedBox(height: 10),
-                  ],
-              ],
-            ),
-          );
-        },
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Could not load sales',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => isRabbitProfileView
-              ? ref.invalidate(rabbitSaleListProvider(rabbitId!))
-              : ref.invalidate(saleListProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+                    minHeight: 260,
+                  ),
+                )
+              else
+                for (final sale in items) ...[
+                  _SaleTile(sale: sale),
+                  const SizedBox(height: 10),
+                ],
+            ],
+          ),
+        );
+      },
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load sales',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => isRabbitProfileView
+            ? ref.invalidate(rabbitSaleListProvider(rabbitId!))
+            : ref.invalidate(saleListProvider),
       ),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

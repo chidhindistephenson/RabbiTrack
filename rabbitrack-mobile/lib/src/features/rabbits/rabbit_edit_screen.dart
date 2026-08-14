@@ -353,7 +353,9 @@ class _RabbitEditScreenState extends ConsumerState<RabbitEditScreen> {
                   controller: _tagController,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(
-                    labelText: 'Tag or tattoo',
+                    labelText: 'Physical mark',
+                    helperText:
+                        'Usually matches the Rabbit ID unless an older mark exists.',
                     border: OutlineInputBorder(),
                   ),
                 ),

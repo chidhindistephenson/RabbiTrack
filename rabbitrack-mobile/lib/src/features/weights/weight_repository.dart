@@ -60,31 +60,6 @@ class WeightRepository {
     );
   }
 
-  Future<WeightSummary> recordLitterWeight({
-    required String farmId,
-    required String litterId,
-    required double weightValue,
-    String? method,
-    String? notes,
-  }) async {
-    final response = await dio.post<Map<String, dynamic>>(
-      '/farms/$farmId/weights',
-      data: {
-        'litter_id': litterId,
-        'weighed_on': DateTime.now().toIso8601String(),
-        'weight_value': weightValue,
-        'weight_unit': 'kg',
-        'method': method ?? 'field entry',
-        'notes': ?notes,
-      },
-      options: _authOptions(),
-    );
-
-    return WeightSummary.fromJson(
-      response.data!['data'] as Map<String, dynamic>,
-    );
-  }
-
   Options _authOptions() {
     return Options(headers: {'Authorization': 'Bearer $token'});
   }

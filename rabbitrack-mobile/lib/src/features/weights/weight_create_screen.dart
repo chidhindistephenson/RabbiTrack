@@ -9,8 +9,6 @@ import '../../shared/app_state.dart';
 import '../../shared/snackbars.dart';
 import '../../theme/rabbitrack_colors.dart';
 import '../auth/auth_controller.dart';
-import '../litters/litter_controller.dart';
-import '../litters/litter_models.dart';
 import '../rabbits/rabbit_controller.dart';
 import '../rabbits/rabbit_models.dart';
 import '../rabbits/rabbit_options.dart';
@@ -36,17 +34,13 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
   final _weightController = TextEditingController();
   final _methodController = TextEditingController(text: 'Digital scale');
   final _notesController = TextEditingController();
-  late String _targetType;
   String? _rabbitId;
-  String? _litterId;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _rabbitId = widget.initialRabbitId;
-    _litterId = widget.initialLitterId;
-    _targetType = widget.initialLitterId == null ? 'rabbit' : 'litter';
   }
 
   @override
@@ -67,59 +61,32 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
       return;
     }
 
-    if (_targetType == 'rabbit' && _rabbitId == null) {
-      return;
-    }
-
-    if (_targetType == 'litter' && _litterId == null) {
+    if (_rabbitId == null) {
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      if (_targetType == 'rabbit') {
-        await ref
-            .read(weightRepositoryProvider)
-            .recordRabbitWeight(
-              farmId: farm.id,
-              rabbitId: _rabbitId!,
-              weightValue: weight,
-              method: _optionalText(_methodController),
-              notes: _optionalText(_notesController),
-            );
+      await ref
+          .read(weightRepositoryProvider)
+          .recordRabbitWeight(
+            farmId: farm.id,
+            rabbitId: _rabbitId!,
+            weightValue: weight,
+            method: _optionalText(_methodController),
+            notes: _optionalText(_notesController),
+          );
 
-        ref.invalidate(rabbitWeightListProvider(_rabbitId!));
-        ref.invalidate(rabbitListProvider);
-        ref.invalidate(rabbitDetailProvider(_rabbitId!));
-      } else {
-        await ref
-            .read(weightRepositoryProvider)
-            .recordLitterWeight(
-              farmId: farm.id,
-              litterId: _litterId!,
-              weightValue: weight,
-              method: _optionalText(_methodController),
-              notes: _optionalText(_notesController),
-            );
-
-        ref.invalidate(litterWeightListProvider(_litterId!));
-        ref.invalidate(litterListProvider);
-        ref.invalidate(litterDetailProvider(_litterId!));
-      }
+      ref.invalidate(rabbitWeightListProvider(_rabbitId!));
+      ref.invalidate(rabbitListProvider);
+      ref.invalidate(rabbitDetailProvider(_rabbitId!));
 
       ref.invalidate(weightListProvider);
 
       if (mounted) {
         showSuccessSnackBar(context, 'Weight recorded.');
-        popOrGo(
-          context,
-          _targetType == 'rabbit' && _rabbitId != null
-              ? '/rabbits/$_rabbitId'
-              : _targetType == 'litter' && _litterId != null
-              ? '/litters/$_litterId'
-              : '/weights',
-        );
+        popOrGo(context, '/rabbits/$_rabbitId');
       }
     } catch (error) {
       if (mounted) {
@@ -138,7 +105,6 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
   @override
   Widget build(BuildContext context) {
     final rabbits = ref.watch(rabbitListProvider);
-    final litters = ref.watch(litterListProvider);
     final lockedRabbit = widget.initialRabbitId == null
         ? null
         : ref.watch(rabbitDetailProvider(widget.initialRabbitId!));
@@ -159,7 +125,17 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
         backgroundColor: RabbiTrackColors.forestGreen,
         foregroundColor: RabbiTrackColors.cream,
       ),
-      body: lockedTerminalRabbit
+      body: widget.initialLitterId != null
+          ? AppState(
+              icon: Icons.monitor_weight_outlined,
+              title: 'Litter weights are automatic',
+              message:
+                  'Record birth litter weight during kindling and weaning weight during weaning.',
+              actionLabel: 'Back to litter',
+              onAction: () =>
+                  popOrGo(context, '/litters/${widget.initialLitterId}'),
+            )
+          : lockedTerminalRabbit
           ? AppState(
               icon: Icons.lock_outline,
               title: 'Rabbit is no longer active',
@@ -174,141 +150,70 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'rabbit',
-                        icon: Icon(Icons.manage_search),
-                        label: Text('Rabbit'),
-                      ),
-                      ButtonSegment(
-                        value: 'litter',
-                        icon: Icon(Icons.child_care),
-                        label: Text('Litter'),
-                      ),
-                    ],
-                    selected: {_targetType},
-                    onSelectionChanged:
-                        widget.initialRabbitId != null ||
-                            widget.initialLitterId != null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _targetType = value.first;
-                              if (_targetType == 'rabbit') {
-                                _litterId = null;
-                              } else {
-                                _rabbitId = null;
-                              }
-                            });
-                          },
-                  ),
-                  const SizedBox(height: 14),
-                  if (_targetType == 'rabbit')
-                    lockedRabbit?.when(
-                          data: (item) => _TargetContextCard(
-                            icon: Icons.manage_search,
-                            title:
-                                '${item.identifier}${item.name == null ? '' : ' - ${item.name}'}',
-                            subtitle:
-                                'Rabbit weight will be saved to this profile.',
-                          ),
-                          error: (error, stackTrace) => AppState(
-                            icon: Icons.cloud_off_outlined,
-                            title: 'Could not load rabbit',
-                            message: 'Check the API server and try again.',
-                            actionLabel: 'Retry',
-                            onAction: () => ref.invalidate(
-                              rabbitDetailProvider(_rabbitId!),
-                            ),
-                            minHeight: 180,
-                          ),
-                          loading: () => const LinearProgressIndicator(),
-                        ) ??
-                        rabbits.when(
-                          data: (items) {
-                            final activeRabbits = items
-                                .where(
-                                  (rabbit) =>
-                                      !isTerminalRabbitStatus(rabbit.status),
-                                )
-                                .toList();
+                  lockedRabbit?.when(
+                        data: (item) => _TargetContextCard(
+                          icon: Icons.manage_search,
+                          title:
+                              '${item.identifier}${item.name == null ? '' : ' - ${item.name}'}',
+                          subtitle:
+                              'Rabbit weight will be saved to this profile.',
+                        ),
+                        error: (error, stackTrace) => AppState(
+                          icon: Icons.cloud_off_outlined,
+                          title: 'Could not load rabbit',
+                          message: 'Check the API server and try again.',
+                          actionLabel: 'Retry',
+                          onAction: () =>
+                              ref.invalidate(rabbitDetailProvider(_rabbitId!)),
+                          minHeight: 180,
+                        ),
+                        loading: () => const LinearProgressIndicator(),
+                      ) ??
+                      rabbits.when(
+                        data: (items) {
+                          final activeRabbits = items
+                              .where(
+                                (rabbit) =>
+                                    !isTerminalRabbitStatus(rabbit.status),
+                              )
+                              .toList();
 
-                            if (activeRabbits.isEmpty) {
-                              return AppState(
-                                icon: Icons.manage_search,
-                                title: 'No active rabbits to weigh',
-                                message:
-                                    'Add an active rabbit before recording weights.',
-                                actionLabel: 'Add rabbit',
-                                actionIcon: Icons.add,
-                                onAction: () => context.push('/rabbits/new'),
-                              );
-                            }
-
-                            return DropdownButtonFormField<String>(
-                              initialValue: _rabbitId,
-                              decoration: const InputDecoration(
-                                labelText: 'Rabbit',
-                                border: OutlineInputBorder(),
-                              ),
-                              isExpanded: true,
-                              items: activeRabbits.map(_rabbitItem).toList(),
-                              onChanged: (value) =>
-                                  setState(() => _rabbitId = value),
-                              validator: (value) =>
-                                  value == null ? 'Select a rabbit' : null,
+                          if (activeRabbits.isEmpty) {
+                            return AppState(
+                              icon: Icons.manage_search,
+                              title: 'No active rabbits to weigh',
+                              message:
+                                  'Add an active rabbit before recording weights.',
+                              actionLabel: 'Add rabbit',
+                              actionIcon: Icons.add,
+                              onAction: () => context.push('/rabbits/new'),
                             );
-                          },
-                          error: (error, stackTrace) => AppState(
-                            icon: Icons.cloud_off_outlined,
-                            title: 'Could not load rabbits',
-                            message: 'Check the API server and try again.',
-                            actionLabel: 'Retry',
-                            onAction: () => ref.invalidate(rabbitListProvider),
-                            minHeight: 180,
-                          ),
-                          loading: () => const LinearProgressIndicator(),
-                        )
-                  else
-                    litters.when(
-                      data: (items) {
-                        if (items.isEmpty) {
-                          return AppState(
-                            icon: Icons.child_care,
-                            title: 'No litters to weigh',
-                            message:
-                                'Record a kindling before weighing a litter.',
-                            actionLabel: 'Record kindling',
-                            actionIcon: Icons.add,
-                            onAction: () => context.push('/litters/new'),
-                          );
-                        }
+                          }
 
-                        return DropdownButtonFormField<String>(
-                          initialValue: _litterId,
-                          decoration: const InputDecoration(
-                            labelText: 'Litter',
-                            border: OutlineInputBorder(),
-                          ),
-                          isExpanded: true,
-                          items: items.map(_litterItem).toList(),
-                          onChanged: (value) =>
-                              setState(() => _litterId = value),
-                          validator: (value) =>
-                              value == null ? 'Select a litter' : null,
-                        );
-                      },
-                      error: (error, stackTrace) => AppState(
-                        icon: Icons.cloud_off_outlined,
-                        title: 'Could not load litters',
-                        message: 'Check the API server and try again.',
-                        actionLabel: 'Retry',
-                        onAction: () => ref.invalidate(litterListProvider),
-                        minHeight: 180,
+                          return DropdownButtonFormField<String>(
+                            initialValue: _rabbitId,
+                            decoration: const InputDecoration(
+                              labelText: 'Rabbit',
+                              border: OutlineInputBorder(),
+                            ),
+                            isExpanded: true,
+                            items: activeRabbits.map(_rabbitItem).toList(),
+                            onChanged: (value) =>
+                                setState(() => _rabbitId = value),
+                            validator: (value) =>
+                                value == null ? 'Select a rabbit' : null,
+                          );
+                        },
+                        error: (error, stackTrace) => AppState(
+                          icon: Icons.cloud_off_outlined,
+                          title: 'Could not load rabbits',
+                          message: 'Check the API server and try again.',
+                          actionLabel: 'Retry',
+                          onAction: () => ref.invalidate(rabbitListProvider),
+                          minHeight: 180,
+                        ),
+                        loading: () => const LinearProgressIndicator(),
                       ),
-                      loading: () => const LinearProgressIndicator(),
-                    ),
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _weightController,
@@ -318,9 +223,9 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                     ],
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Weight kg',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                     ),
                     validator: _weightValidator,
                   ),
@@ -361,7 +266,7 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
   }
 
   bool get _hasTarget {
-    return _targetType == 'rabbit' ? _rabbitId != null : _litterId != null;
+    return _rabbitId != null;
   }
 
   DropdownMenuItem<String> _rabbitItem(RabbitSummary rabbit) {
@@ -369,16 +274,6 @@ class _WeightCreateScreenState extends ConsumerState<WeightCreateScreen> {
       value: rabbit.id,
       child: Text(
         '${rabbit.identifier}${rabbit.name == null ? '' : ' - ${rabbit.name}'}',
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  DropdownMenuItem<String> _litterItem(LitterSummary litter) {
-    return DropdownMenuItem(
-      value: litter.id,
-      child: Text(
-        '${litter.identifier} - ${litter.doeIdentifier}',
         overflow: TextOverflow.ellipsis,
       ),
     );

@@ -41,6 +41,8 @@ class KindlingController extends Controller
             'kits_born_alive' => ['required', 'integer', 'min:0', 'max:100'],
             'kits_stillborn' => ['nullable', 'integer', 'min:0', 'max:100'],
             'kits_weak' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'birth_weight_value' => ['required', 'numeric', 'min:0.001', 'max:99999'],
+            'weight_unit' => ['nullable', 'string', 'max:10'],
             'nest_condition' => ['nullable', 'string', 'max:160'],
             'doe_condition' => ['nullable', 'string', 'max:160'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -71,6 +73,9 @@ class KindlingController extends Controller
         $alive = (int) $validated['kits_born_alive'];
         $stillborn = (int) ($validated['kits_stillborn'] ?? 0);
         $weak = (int) ($validated['kits_weak'] ?? 0);
+        $weightUnit = $validated['weight_unit'] ?? 'kg';
+        $birthWeight = (float) $validated['birth_weight_value'];
+        $averageBirthWeight = $alive > 0 ? round($birthWeight / $alive, 3) : null;
 
         $litter = $farm->litters()->create([
             'identifier' => $this->uniqueLitterIdentifier($farm, $kindledOn),
@@ -99,6 +104,19 @@ class KindlingController extends Controller
             'nest_condition' => $validated['nest_condition'] ?? null,
             'doe_condition' => $validated['doe_condition'] ?? null,
             'notes' => $validated['notes'] ?? null,
+        ]);
+
+        $farm->weightRecords()->create([
+            'litter_id' => $litter->id,
+            'stage' => 'birth',
+            'recorded_by_id' => $request->user()->id,
+            'weighed_on' => $kindledOn->toDateString(),
+            'weight_value' => $birthWeight,
+            'weight_unit' => $weightUnit,
+            'kit_count' => $alive,
+            'average_weight_value' => $averageBirthWeight,
+            'method' => 'Kindling record',
+            'notes' => 'Birth litter weight recorded during kindling.',
         ]);
 
         $doe->update(['status' => 'nursing']);
@@ -140,6 +158,9 @@ class KindlingController extends Controller
                     'weighed_on' => $weight->weighed_on?->toDateString(),
                     'weight_value' => $weight->weight_value,
                     'weight_unit' => $weight->weight_unit,
+                    'stage' => $weight->stage,
+                    'kit_count' => $weight->kit_count,
+                    'average_weight_value' => $weight->average_weight_value,
                     'method' => $weight->method,
                     'notes' => $weight->notes,
                 ]),

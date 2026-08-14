@@ -16,6 +16,8 @@ final farmSummaryProvider = FutureProvider.autoDispose<FarmSummaryCounts>((
       readyForSale: 0,
       healthAlerts: 0,
       quarantined: 0,
+      pregnantDoes: 0,
+      nursingDoes: 0,
       openTasks: 0,
       totalSales: 0,
       salesRevenue: '0.00',

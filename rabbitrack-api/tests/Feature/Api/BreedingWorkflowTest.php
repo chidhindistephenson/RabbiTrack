@@ -306,6 +306,7 @@ class BreedingWorkflowTest extends TestCase
             'doe_id' => $doe->id,
             'kindled_on' => '2026-08-05',
             'kits_born_alive' => 5,
+            'birth_weight_value' => 0.450,
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('doe_id');

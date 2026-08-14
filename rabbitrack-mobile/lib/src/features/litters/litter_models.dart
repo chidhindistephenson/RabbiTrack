@@ -2,18 +2,24 @@ class LitterSummary {
   const LitterSummary({
     required this.id,
     required this.identifier,
+    required this.doeId,
     required this.doeIdentifier,
     required this.kindledOn,
     required this.currentLiveCount,
     required this.plannedWeaningOn,
     required this.status,
+    this.buckId,
+    this.buckIdentifier,
   });
 
   factory LitterSummary.fromJson(Map<String, dynamic> json) {
     return LitterSummary(
       id: json['id'] as String,
       identifier: json['identifier'] as String,
+      doeId: json['doe_id'] as String,
       doeIdentifier: json['doe_identifier'] as String? ?? 'Doe',
+      buckId: json['buck_id'] as String?,
+      buckIdentifier: json['buck_identifier'] as String?,
       kindledOn: json['kindled_on'] as String,
       currentLiveCount: json['current_live_count'] as int,
       plannedWeaningOn: json['planned_weaning_on'] as String,
@@ -23,7 +29,10 @@ class LitterSummary {
 
   final String id;
   final String identifier;
+  final String doeId;
   final String doeIdentifier;
+  final String? buckId;
+  final String? buckIdentifier;
   final String kindledOn;
   final int currentLiveCount;
   final String plannedWeaningOn;
@@ -34,6 +43,7 @@ class LitterDetail extends LitterSummary {
   const LitterDetail({
     required super.id,
     required super.identifier,
+    required super.doeId,
     required super.doeIdentifier,
     required super.kindledOn,
     required super.currentLiveCount,
@@ -44,15 +54,18 @@ class LitterDetail extends LitterSummary {
     required this.kitsWeak,
     required this.weanings,
     required this.weights,
-    this.buckIdentifier,
     this.notes,
+    super.buckId,
+    super.buckIdentifier,
   });
 
   factory LitterDetail.fromJson(Map<String, dynamic> json) {
     return LitterDetail(
       id: json['id'] as String,
       identifier: json['identifier'] as String,
+      doeId: json['doe_id'] as String,
       doeIdentifier: json['doe_identifier'] as String? ?? 'Doe',
+      buckId: json['buck_id'] as String?,
       buckIdentifier: json['buck_identifier'] as String?,
       kindledOn: json['kindled_on'] as String,
       kitsBornAlive: json['kits_born_alive'] as int,
@@ -77,7 +90,6 @@ class LitterDetail extends LitterSummary {
     );
   }
 
-  final String? buckIdentifier;
   final int kitsBornAlive;
   final int kitsStillborn;
   final int kitsWeak;
@@ -123,6 +135,9 @@ class LitterWeightSummary {
     required this.id,
     required this.weightValue,
     required this.weightUnit,
+    this.stage,
+    this.kitCount,
+    this.averageWeightValue,
     this.weighedOn,
     this.method,
     this.notes,
@@ -134,6 +149,9 @@ class LitterWeightSummary {
       weighedOn: json['weighed_on'] as String?,
       weightValue: json['weight_value'].toString(),
       weightUnit: json['weight_unit'] as String,
+      stage: json['stage'] as String?,
+      kitCount: json['kit_count'] as int?,
+      averageWeightValue: json['average_weight_value']?.toString(),
       method: json['method'] as String?,
       notes: json['notes'] as String?,
     );
@@ -143,6 +161,9 @@ class LitterWeightSummary {
   final String? weighedOn;
   final String weightValue;
   final String weightUnit;
+  final String? stage;
+  final int? kitCount;
+  final String? averageWeightValue;
   final String? method;
   final String? notes;
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rabbitrack_mobile/src/features/litters/litter_controller.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_controller.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_models.dart';
 import 'package:rabbitrack_mobile/src/features/weights/weight_create_screen.dart';
@@ -10,10 +9,7 @@ void main() {
   testWidgets('WeightCreateScreen shows rabbit empty state', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          rabbitListProvider.overrideWith((ref) async => const []),
-          litterListProvider.overrideWith((ref) async => const []),
-        ],
+        overrides: [rabbitListProvider.overrideWith((ref) async => const [])],
         child: const MaterialApp(home: WeightCreateScreen()),
       ),
     );
@@ -31,7 +27,6 @@ void main() {
         overrides: [
           rabbitDetailProvider('rabbit-1').overrideWith((ref) async => _rabbit),
           rabbitListProvider.overrideWith((ref) async => const []),
-          litterListProvider.overrideWith((ref) async => const []),
         ],
         child: const MaterialApp(
           home: WeightCreateScreen(initialRabbitId: 'rabbit-1'),
@@ -63,7 +58,6 @@ void main() {
             'rabbit-1',
           ).overrideWith((ref) async => _soldRabbit),
           rabbitListProvider.overrideWith((ref) async => const []),
-          litterListProvider.overrideWith((ref) async => const []),
         ],
         child: const MaterialApp(
           home: WeightCreateScreen(initialRabbitId: 'rabbit-1'),
@@ -73,6 +67,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Rabbit is no longer active'), findsOneWidget);
+    expect(find.text('Save weight'), findsNothing);
+  });
+
+  testWidgets('WeightCreateScreen blocks direct litter weight entry', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [rabbitListProvider.overrideWith((ref) async => const [])],
+        child: const MaterialApp(
+          home: WeightCreateScreen(initialLitterId: 'litter-1'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Litter weights are automatic'), findsOneWidget);
+    expect(
+      find.text(
+        'Record birth litter weight during kindling and weaning weight during weaning.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Save weight'), findsNothing);
   });
 }

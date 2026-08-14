@@ -1,62 +1,134 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../shared/app_state.dart';
 import '../../shared/money_format.dart';
 import '../../theme/rabbitrack_colors.dart';
+import '../expenses/expense_list_screen.dart';
+import '../sales/sale_list_screen.dart';
 import 'finance_report_controller.dart';
 import 'finance_report_models.dart';
 import 'finance_report_options.dart';
 
-class FinanceReportScreen extends ConsumerWidget {
+class FinanceReportScreen extends ConsumerStatefulWidget {
   const FinanceReportScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final report = ref.watch(monthlyFinanceReportProvider);
+  ConsumerState<FinanceReportScreen> createState() =>
+      _FinanceReportScreenState();
+}
 
+class _FinanceReportScreenState extends ConsumerState<FinanceReportScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(_handleTabChanged);
+  }
+
+  void _handleTabChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Finance report'),
         backgroundColor: RabbiTrackColors.forestGreen,
         foregroundColor: RabbiTrackColors.cream,
-      ),
-      body: report.when(
-        data: (item) => RefreshIndicator(
-          onRefresh: () async {
-            final refreshed = ref.refresh(monthlyFinanceReportProvider.future);
-            await refreshed;
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
-            children: [
-              _FinanceReportHeader(report: item),
-              const SizedBox(height: 14),
-              if (item.months.isEmpty)
-                const AppState(
-                  icon: Icons.bar_chart,
-                  title: 'No finance history yet',
-                  message:
-                      'Sales and expenses will build the monthly report automatically.',
-                  minHeight: 260,
-                )
-              else
-                for (final month in item.months) ...[
-                  _FinanceMonthTile(currency: item.currency, month: month),
-                  const SizedBox(height: 10),
-                ],
-            ],
-          ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: RabbiTrackColors.cream,
+          unselectedLabelColor: RabbiTrackColors.mintGreen,
+          indicatorColor: RabbiTrackColors.warmTan,
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Sales'),
+            Tab(text: 'Expenses'),
+          ],
         ),
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Could not load report',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(monthlyFinanceReportProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
       ),
+      floatingActionButton: switch (_tabController.index) {
+        1 => FloatingActionButton.extended(
+          onPressed: () => context.push('/sales/new'),
+          icon: const Icon(Icons.add),
+          label: const Text('Sale'),
+        ),
+        2 => FloatingActionButton.extended(
+          onPressed: () => context.push('/expenses/new'),
+          icon: const Icon(Icons.add),
+          label: const Text('Expense'),
+        ),
+        _ => null,
+      },
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          _FinanceOverviewTab(),
+          SaleListContent(),
+          ExpenseListContent(),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinanceOverviewTab extends ConsumerWidget {
+  const _FinanceOverviewTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final report = ref.watch(monthlyFinanceReportProvider);
+
+    return report.when(
+      data: (item) => RefreshIndicator(
+        onRefresh: () async {
+          final refreshed = ref.refresh(monthlyFinanceReportProvider.future);
+          await refreshed;
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+          children: [
+            _FinanceReportHeader(report: item),
+            const SizedBox(height: 14),
+            if (item.months.isEmpty)
+              const AppState(
+                icon: Icons.bar_chart,
+                title: 'No finance history yet',
+                message:
+                    'Sales and expenses will build the monthly report automatically.',
+                minHeight: 260,
+              )
+            else
+              for (final month in item.months) ...[
+                _FinanceMonthTile(currency: item.currency, month: month),
+                const SizedBox(height: 10),
+              ],
+          ],
+        ),
+      ),
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load report',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => ref.invalidate(monthlyFinanceReportProvider),
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

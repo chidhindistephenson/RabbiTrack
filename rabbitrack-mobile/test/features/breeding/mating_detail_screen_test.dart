@@ -20,9 +20,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('DOE-0001 x BUCK-0001'), findsOneWidget);
-    expect(find.text('Awaiting pregnancy check'), findsOneWidget);
+    expect(find.text('Awaiting pregnancy check'), findsAtLeastNWidgets(1));
+    expect(find.text('Breeding timeline'), findsOneWidget);
     expect(find.text('Observed'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -420));
+    await tester.pumpAndSettle();
+
     expect(find.text('Not pregnant'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -420));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('2026-08-13 | Born alive 9 | Stillborn 2 | Current live 9'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -42,9 +55,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Actions'), findsOneWidget);
       expect(find.text('Record kindling'), findsOneWidget);
-      expect(find.byTooltip('Record kindling'), findsOneWidget);
+      expect(find.byTooltip('Record kindling'), findsNothing);
     },
   );
 }
@@ -65,7 +77,18 @@ const _mating = MatingDetail(
       checkedOn: '2026-08-11',
     ),
   ],
-  litters: [],
+  litters: [
+    MatingLitterSummary(
+      id: 'litter-1',
+      identifier: 'LIT-260813-XYOS',
+      kindledOn: '2026-08-13',
+      kitsBornAlive: 9,
+      kitsStillborn: 2,
+      kitsWeak: 0,
+      currentLiveCount: 9,
+      status: 'nursing',
+    ),
+  ],
 );
 
 const _pregnantMating = MatingDetail(

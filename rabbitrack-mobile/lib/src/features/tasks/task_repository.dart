@@ -17,9 +17,10 @@ class TaskRepository {
   final Dio dio;
   final String? token;
 
-  Future<List<TaskSummary>> list(String farmId) async {
+  Future<List<TaskSummary>> list(String farmId, {String? due}) async {
     final response = await dio.get<Map<String, dynamic>>(
-      '/farms/$farmId/tasks?status=open',
+      '/farms/$farmId/tasks',
+      queryParameters: {'status': 'open', 'due': ?due},
       options: _authOptions(),
     );
 

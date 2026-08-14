@@ -32,6 +32,8 @@ class FarmSummaryTest extends TestCase
         Rabbit::factory()->create(['farm_id' => $farm->id, 'status' => 'growing']);
         Rabbit::factory()->create(['farm_id' => $farm->id, 'status' => 'ready_for_sale']);
         Rabbit::factory()->create(['farm_id' => $farm->id, 'status' => 'quarantined']);
+        Rabbit::factory()->create(['farm_id' => $farm->id, 'sex' => 'female', 'status' => 'pregnant']);
+        Rabbit::factory()->create(['farm_id' => $farm->id, 'sex' => 'female', 'status' => 'nursing']);
         $soldRabbit = Rabbit::factory()->create(['farm_id' => $farm->id, 'status' => 'sold']);
         HealthEvent::factory()->create(['farm_id' => $farm->id, 'status' => 'open']);
         HealthEvent::factory()->create(['farm_id' => $farm->id, 'status' => 'resolved']);
@@ -55,10 +57,12 @@ class FarmSummaryTest extends TestCase
 
         $this->getJson("/api/v1/farms/{$farm->id}/summary")
             ->assertOk()
-            ->assertJsonPath('data.active_rabbits', 3)
+            ->assertJsonPath('data.active_rabbits', 5)
             ->assertJsonPath('data.ready_for_sale', 1)
             ->assertJsonPath('data.health_alerts', 1)
             ->assertJsonPath('data.quarantined', 1)
+            ->assertJsonPath('data.pregnant_does', 1)
+            ->assertJsonPath('data.nursing_does', 1)
             ->assertJsonPath('data.open_tasks', 1)
             ->assertJsonPath('data.total_sales', 1)
             ->assertJsonPath('data.sales_revenue', '25.50')

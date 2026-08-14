@@ -42,6 +42,7 @@ class DatabaseSeeder extends Seeder
                     'pregnancy_check_end_days' => 14,
                     'nest_box_lead_days' => 3,
                     'weaning_days' => 35,
+                    'kit_identification_days_after_weaning' => 7,
                 ],
             ],
         );

@@ -46,21 +46,15 @@ class HomeScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 112),
             children: [
-              _DashboardHeader(farmName: farm?.name ?? 'RabbiTrack'),
+              _DashboardHeader(
+                farmName: farm?.name ?? 'RabbiTrack',
+                taskSummary: taskSummary,
+              ),
               const SizedBox(height: 14),
               farmSummary.when(
                 data: (summary) => _FarmPulseCard(summary: summary),
                 error: (error, stackTrace) => const _HeroFallbackCard(),
                 loading: () => const _HeroLoadingCard(),
-              ),
-              const SizedBox(height: 14),
-              taskSummary.when(
-                data: (tasks) => _TaskFocusCard(tasks: tasks),
-                error: (error, stackTrace) => const _TaskFocusCard(
-                  tasks: TaskSummaryCounts(today: 0, overdue: 0, open: 0),
-                  hasError: true,
-                ),
-                loading: () => const _TaskLoadingCard(),
               ),
               const SizedBox(height: 14),
               farmSummary.when(
@@ -108,9 +102,10 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({required this.farmName});
+  const _DashboardHeader({required this.farmName, required this.taskSummary});
 
   final String farmName;
+  final AsyncValue<TaskSummaryCounts> taskSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -157,11 +152,7 @@ class _DashboardHeader extends StatelessWidget {
         ),
         _DateChip(date: now),
         const SizedBox(width: 8),
-        IconButton.filledTonal(
-          tooltip: 'Notifications',
-          onPressed: () => context.push('/tasks'),
-          icon: const Icon(Icons.notifications_outlined),
-        ),
+        _NotificationIconButton(taskSummary: taskSummary),
       ],
     );
   }
@@ -175,6 +166,67 @@ class _DashboardHeader extends StatelessWidget {
     }
 
     return 'Good evening';
+  }
+}
+
+class _NotificationIconButton extends StatelessWidget {
+  const _NotificationIconButton({required this.taskSummary});
+
+  final AsyncValue<TaskSummaryCounts> taskSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    final openTasks = taskSummary.valueOrNull?.open ?? 0;
+    final hasError = taskSummary.hasError;
+    final showBadge = hasError || openTasks > 0;
+    final label = openTasks > 99 ? '99+' : '$openTasks';
+
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: IconButton.filledTonal(
+              tooltip: 'Notifications',
+              onPressed: () => context.push('/tasks'),
+              icon: const Icon(Icons.notifications_outlined),
+            ),
+          ),
+          if (showBadge)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: hasError
+                      ? const Color(0xFFB86955)
+                      : RabbiTrackColors.warmTan,
+                  shape: !hasError && openTasks < 10
+                      ? BoxShape.circle
+                      : BoxShape.rectangle,
+                  borderRadius: !hasError && openTasks < 10
+                      ? null
+                      : BorderRadius.circular(999),
+                  border: Border.all(color: RabbiTrackColors.cream, width: 2),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  hasError ? '!' : label,
+                  style: const TextStyle(
+                    color: RabbiTrackColors.forestGreen,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -370,9 +422,9 @@ class _FarmPulseCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _HeroMetric(
-                      label: 'Net',
-                      value: formatMoney(summary.currency, summary.netIncome),
-                      icon: Icons.trending_up,
+                      label: 'Breeding',
+                      value: '${summary.pregnantDoes + summary.nursingDoes}',
+                      icon: Icons.favorite_border,
                     ),
                   ),
                 ],
@@ -489,73 +541,6 @@ class _FarmInsightLine extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TaskFocusCard extends StatelessWidget {
-  const _TaskFocusCard({required this.tasks, this.hasError = false});
-
-  final TaskSummaryCounts tasks;
-  final bool hasError;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = tasks.open == 0 ? 1 : tasks.open;
-    final todayProgress = (tasks.today / total).clamp(0.0, 1.0);
-
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: _SectionTitle(
-                  title: 'Task focus',
-                  subtitle: 'Keep the daily work moving',
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => context.push('/tasks'),
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('Open'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (hasError)
-            const Text(
-              'Tasks could not be loaded.',
-              style: TextStyle(color: Color(0xFF61706A)),
-            )
-          else ...[
-            Row(
-              children: [
-                _TaskNumber(label: 'Today', value: tasks.today),
-                const SizedBox(width: 10),
-                _TaskNumber(label: 'Overdue', value: tasks.overdue),
-                const SizedBox(width: 10),
-                _TaskNumber(label: 'Open', value: tasks.open),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                minHeight: 10,
-                value: todayProgress,
-                backgroundColor: RabbiTrackColors.mintGreen.withValues(
-                  alpha: 0.38,
-                ),
-                color: tasks.overdue > 0
-                    ? RabbiTrackColors.warmTan
-                    : RabbiTrackColors.sageGreen,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -1303,45 +1288,6 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _TaskNumber extends StatelessWidget {
-  const _TaskNumber({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: RabbiTrackColors.cream,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$value',
-              style: const TextStyle(
-                color: RabbiTrackColors.forestGreen,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF61706A), fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _MoneyLine extends StatelessWidget {
   const _MoneyLine({
     required this.label,
@@ -1435,15 +1381,6 @@ class _HeroLoadingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _SmallLoadingCard(height: 240);
-  }
-}
-
-class _TaskLoadingCard extends StatelessWidget {
-  const _TaskLoadingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _SmallLoadingCard(height: 164);
   }
 }
 

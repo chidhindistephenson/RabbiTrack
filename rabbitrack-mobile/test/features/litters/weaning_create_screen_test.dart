@@ -19,6 +19,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Average weaning weight kg'), findsOneWidget);
+    expect(
+      find.text('This becomes the litter weaning weight record.'),
+      findsOneWidget,
+    );
+
     await tester.enterText(find.byType(TextFormField).first, '9');
     await tester.tap(find.text('Save weaning'));
     await tester.pumpAndSettle();
@@ -31,6 +37,7 @@ const _litters = [
   LitterSummary(
     id: 'litter-1',
     identifier: 'LIT-260803-TEST',
+    doeId: 'doe-1',
     doeIdentifier: 'DOE-0001',
     kindledOn: '2026-08-03',
     currentLiveCount: 8,

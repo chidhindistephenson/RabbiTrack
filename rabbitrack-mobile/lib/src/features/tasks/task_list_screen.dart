@@ -19,6 +19,8 @@ class TaskListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks = ref.watch(taskListProvider);
+    final summary = ref.watch(taskSummaryProvider);
+    final selectedFilter = ref.watch(taskDueFilterProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -33,25 +35,37 @@ class TaskListScreen extends ConsumerWidget {
       ),
       body: tasks.when(
         data: (items) {
-          if (items.isEmpty) {
-            return AppState(
-              icon: Icons.task_alt,
-              title: 'No open tasks',
-              message:
-                  'Create a task for feeding, breeding, health checks, cage work, or anything that needs follow-up.',
-              actionLabel: 'Add task',
-              actionIcon: Icons.add,
-              onAction: () => context.push('/tasks/new'),
-            );
-          }
-
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(taskListProvider.future),
-            child: ListView.separated(
+            onRefresh: () => Future.wait([
+              ref.refresh(taskSummaryProvider.future),
+              ref.refresh(taskListProvider.future),
+            ]),
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemBuilder: (context, index) => _TaskTile(task: items[index]),
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemCount: items.length,
+              children: [
+                _TaskFocusCard(summary: summary),
+                const SizedBox(height: 12),
+                _TaskFilterBar(selectedFilter: selectedFilter),
+                const SizedBox(height: 14),
+                if (items.isEmpty)
+                  AppState(
+                    icon: Icons.task_alt,
+                    title: selectedFilter == TaskDueFilter.all
+                        ? 'No open tasks'
+                        : 'No ${taskDueFilterTitle(selectedFilter.apiValue ?? 'all').toLowerCase()} tasks',
+                    message:
+                        'Create a task for feeding, breeding, health checks, cage work, or anything that needs follow-up.',
+                    actionLabel: 'Add task',
+                    actionIcon: Icons.add,
+                    onAction: () => context.push('/tasks/new'),
+                    minHeight: 300,
+                  )
+                else
+                  for (final task in items) ...[
+                    _TaskTile(task: task),
+                    const SizedBox(height: 10),
+                  ],
+              ],
             ),
           );
         },
@@ -63,6 +77,127 @@ class TaskListScreen extends ConsumerWidget {
           onAction: () => ref.invalidate(taskListProvider),
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+class _TaskFocusCard extends StatelessWidget {
+  const _TaskFocusCard({required this.summary});
+
+  final AsyncValue<TaskSummaryCounts> summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: summary.when(
+          data: (counts) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Task focus',
+                style: TextStyle(
+                  color: RabbiTrackColors.forestGreen,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Keep the daily work moving',
+                style: TextStyle(color: RabbiTrackColors.sageGreen),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _TaskCountTile(label: 'Today', value: counts.today),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _TaskCountTile(
+                      label: 'Overdue',
+                      value: counts.overdue,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _TaskCountTile(label: 'Open', value: counts.open),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          error: (error, stackTrace) =>
+              const Text('Could not load task focus.'),
+          loading: () => const LinearProgressIndicator(),
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskCountTile extends StatelessWidget {
+  const _TaskCountTile({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: RabbiTrackColors.cream,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value.toString(),
+            style: const TextStyle(
+              color: RabbiTrackColors.forestGreen,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(color: RabbiTrackColors.sageGreen),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskFilterBar extends ConsumerWidget {
+  const _TaskFilterBar({required this.selectedFilter});
+
+  final TaskDueFilter selectedFilter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final filter in TaskDueFilter.values) ...[
+            ChoiceChip(
+              label: Text(taskDueFilterTitle(filter.apiValue ?? 'all')),
+              selected: selectedFilter == filter,
+              onSelected: (_) =>
+                  ref.read(taskDueFilterProvider.notifier).state = filter,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
       ),
     );
   }

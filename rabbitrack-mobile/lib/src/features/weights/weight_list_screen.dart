@@ -172,14 +172,14 @@ class _WeightTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final target =
         weight.rabbitIdentifier ?? weight.litterIdentifier ?? 'Record';
-    final targetType = weight.rabbitIdentifier == null ? 'Litter' : 'Rabbit';
+    final targetType = weightRecordTargetType(weight);
     final method = weight.method == null ? '' : ' | ${weight.method}';
 
     return SoftListTile(
       icon: Icons.monitor_weight,
       title: target,
       subtitle: '$targetType | ${weight.weighedOn}$method',
-      trailing: Text('${weight.weightValue} ${weight.weightUnit}'),
+      trailing: Text(weightRecordValueText(weight), textAlign: TextAlign.end),
     );
   }
 }

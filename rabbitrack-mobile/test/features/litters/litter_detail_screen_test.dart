@@ -23,19 +23,34 @@ void main() {
 
     expect(find.text('LIT-260803-TEST'), findsOneWidget);
     expect(find.text('DOE-0001 x BUCK-0001 | Nursing'), findsOneWidget);
-    expect(find.text('7 weaned | 0.85 kg | Grow-out cages'), findsOneWidget);
+    expect(find.byTooltip('Record litter weight'), findsNothing);
+    expect(find.byTooltip('Record weaning'), findsNothing);
+    expect(find.text('Record weaning'), findsOneWidget);
 
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
     await tester.pumpAndSettle();
 
-    expect(find.text('0.91 kg'), findsOneWidget);
+    expect(
+      find.text('7 weaned | avg 0.85 kg/kit | Grow-out cages'),
+      findsOneWidget,
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('7.28 kg total | avg 0.91 kg/kit | 8 kits'),
+      findsOneWidget,
+    );
   });
 }
 
 const _litter = LitterDetail(
   id: 'litter-1',
   identifier: 'LIT-260803-TEST',
+  doeId: 'doe-1',
   doeIdentifier: 'DOE-0001',
+  buckId: 'buck-1',
   buckIdentifier: 'BUCK-0001',
   kindledOn: '2026-08-03',
   kitsBornAlive: 8,
@@ -58,8 +73,11 @@ const _litter = LitterDetail(
     LitterWeightSummary(
       id: 'weight-1',
       weighedOn: '2026-08-20',
-      weightValue: '0.91',
+      weightValue: '7.28',
       weightUnit: 'kg',
+      stage: 'birth',
+      kitCount: 8,
+      averageWeightValue: '0.91',
     ),
   ],
 );

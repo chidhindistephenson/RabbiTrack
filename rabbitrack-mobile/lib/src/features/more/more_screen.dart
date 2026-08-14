@@ -72,20 +72,8 @@ class MoreScreen extends ConsumerWidget {
               onTap: () => context.push('/weights'),
             ),
             _MoreTile(
-              title: 'Sales',
-              subtitle: 'Rabbit sales and buyer records',
-              icon: Icons.sell_outlined,
-              onTap: () => context.push('/sales'),
-            ),
-            _MoreTile(
-              title: 'Expenses',
-              subtitle: 'Feed, medicine, equipment, and running costs',
-              icon: Icons.payments_outlined,
-              onTap: () => context.push('/expenses'),
-            ),
-            _MoreTile(
               title: 'Finance report',
-              subtitle: 'Monthly revenue, expenses, and net income',
+              subtitle: 'Overview, sales, expenses, and net income',
               icon: Icons.bar_chart,
               onTap: () => context.push('/reports/finance'),
             ),

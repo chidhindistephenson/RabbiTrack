@@ -38,6 +38,13 @@ class Rabbit extends Model
         'culled',
     ];
 
+    public const ORIGIN_TYPES = [
+        'born_on_farm',
+        'purchased',
+        'transferred_in',
+        'existing_stock',
+    ];
+
     protected $fillable = [
         'farm_id',
         'identifier',
@@ -54,6 +61,8 @@ class Rabbit extends Model
         'current_location_id',
         'mother_id',
         'father_id',
+        'origin_type',
+        'origin_litter_id',
         'is_farm_born',
         'supplier',
         'acquired_at',
@@ -90,6 +99,11 @@ class Rabbit extends Model
     public function father(): BelongsTo
     {
         return $this->belongsTo(Rabbit::class, 'father_id');
+    }
+
+    public function originLitter(): BelongsTo
+    {
+        return $this->belongsTo(Litter::class, 'origin_litter_id');
     }
 
     public function movements(): HasMany

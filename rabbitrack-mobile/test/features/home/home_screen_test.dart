@@ -27,7 +27,9 @@ void main() {
 
     expect(find.text('Test Warren'), findsOneWidget);
     expect(find.text('Today on the farm'), findsOneWidget);
-    expect(find.text('Task focus'), findsOneWidget);
+    expect(find.text('Breeding'), findsOneWidget);
+    expect(find.text('4 open tasks'), findsNothing);
+    expect(find.text('1 overdue, 2 due today.'), findsNothing);
     await tester.scrollUntilVisible(
       find.text('Farm money'),
       280,
@@ -66,6 +68,7 @@ void main() {
 
     expect(find.text('Test Warren'), findsOneWidget);
     expect(find.text('Dashboard unavailable'), findsOneWidget);
+    expect(find.text('Tasks unavailable'), findsNothing);
     expect(find.text('Finance unavailable'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Priorities unavailable'),
@@ -117,6 +120,8 @@ const _summary = FarmSummaryCounts(
   readyForSale: 3,
   healthAlerts: 1,
   quarantined: 0,
+  pregnantDoes: 1,
+  nursingDoes: 1,
   openTasks: 4,
   totalSales: 2,
   salesRevenue: '40.00',
@@ -153,6 +158,8 @@ const _oddSummary = FarmSummaryCounts(
   readyForSale: 0,
   healthAlerts: 0,
   quarantined: 0,
+  pregnantDoes: 0,
+  nursingDoes: 0,
   openTasks: 0,
   totalSales: 0,
   salesRevenue: 'NaN',

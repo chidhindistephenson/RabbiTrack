@@ -24,7 +24,11 @@ void main() {
     expect(find.text('DOE-0001'), findsOneWidget);
     expect(find.text('Rabbit | 2026-08-03 | Digital scale'), findsOneWidget);
     expect(find.text('LIT-260803-TEST'), findsOneWidget);
-    expect(find.text('Litter | 2026-08-04 | Field estimate'), findsOneWidget);
+    expect(
+      find.text('Litter total | 2026-08-04 | Field estimate'),
+      findsOneWidget,
+    );
+    expect(find.text('2.750 kg total | 0.550 kg/kit'), findsOneWidget);
   });
 }
 
@@ -43,6 +47,8 @@ const _weights = [
     weighedOn: '2026-08-04',
     weightValue: '2.750',
     weightUnit: 'kg',
+    kitCount: 5,
+    averageWeightValue: '0.550',
     method: 'Field estimate',
   ),
 ];

@@ -19,10 +19,13 @@ class WeightRecordFactory extends Factory
             'farm_id' => Farm::factory(),
             'rabbit_id' => Rabbit::factory(),
             'litter_id' => null,
+            'stage' => null,
             'recorded_by_id' => User::factory(),
             'weighed_on' => now()->toDateString(),
             'weight_value' => fake()->randomFloat(3, 0.5, 5.5),
             'weight_unit' => 'kg',
+            'kit_count' => null,
+            'average_weight_value' => null,
             'method' => 'scale',
             'notes' => null,
         ];

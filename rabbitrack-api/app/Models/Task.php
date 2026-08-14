@@ -19,6 +19,7 @@ class Task extends Model
         'nest_box_preparation',
         'expected_kindling',
         'weaning',
+        'kit_identification',
         'manual',
     ];
 

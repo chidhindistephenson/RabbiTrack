@@ -148,7 +148,9 @@ class _WeaningCreateScreenState extends ConsumerState<WeaningCreateScreen> {
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
                   decoration: const InputDecoration(
-                    labelText: 'Average weight kg',
+                    labelText: 'Average weaning weight kg',
+                    helperText:
+                        'This becomes the litter weaning weight record.',
                     border: OutlineInputBorder(),
                   ),
                   validator: _optionalWeightValidator,

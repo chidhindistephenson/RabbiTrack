@@ -15,9 +15,6 @@ class ExpenseListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final expenses = ref.watch(expenseListProvider);
-    final report = ref.watch(expenseReportProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Expenses'),
@@ -29,57 +26,69 @@ class ExpenseListScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Expense'),
       ),
-      body: expenses.when(
-        data: (items) {
-          return RefreshIndicator(
-            onRefresh: () async {
-              final refreshedReport = ref.refresh(expenseReportProvider.future);
-              final refreshedExpenses = ref.refresh(expenseListProvider.future);
+      body: const ExpenseListContent(),
+    );
+  }
+}
 
-              await refreshedReport;
-              await refreshedExpenses;
-            },
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
-              children: [
-                report.when(
-                  data: (summary) => _ExpenseReportHeader(report: summary),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                  loading: () => const _ExpenseReportLoading(),
-                ),
-                const SizedBox(height: 14),
-                if (items.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 36),
-                    child: AppState(
-                      icon: Icons.payments_outlined,
-                      title: 'No expenses yet',
-                      message:
-                          'Track feed, medicine, housing, labor, and other costs as they happen.',
-                      actionLabel: 'Add expense',
-                      actionIcon: Icons.add,
-                      onAction: () => context.push('/expenses/new'),
-                      minHeight: 260,
-                    ),
-                  )
-                else
-                  for (final expense in items) ...[
-                    _ExpenseTile(expense: expense),
-                    const SizedBox(height: 10),
-                  ],
-              ],
-            ),
-          );
-        },
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Could not load expenses',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(expenseListProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+class ExpenseListContent extends ConsumerWidget {
+  const ExpenseListContent({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final expenses = ref.watch(expenseListProvider);
+    final report = ref.watch(expenseReportProvider);
+
+    return expenses.when(
+      data: (items) {
+        return RefreshIndicator(
+          onRefresh: () async {
+            final refreshedReport = ref.refresh(expenseReportProvider.future);
+            final refreshedExpenses = ref.refresh(expenseListProvider.future);
+
+            await refreshedReport;
+            await refreshedExpenses;
+          },
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+            children: [
+              report.when(
+                data: (summary) => _ExpenseReportHeader(report: summary),
+                error: (error, stackTrace) => const SizedBox.shrink(),
+                loading: () => const _ExpenseReportLoading(),
+              ),
+              const SizedBox(height: 14),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 36),
+                  child: AppState(
+                    icon: Icons.payments_outlined,
+                    title: 'No expenses yet',
+                    message:
+                        'Track feed, medicine, housing, labor, and other costs as they happen.',
+                    actionLabel: 'Add expense',
+                    actionIcon: Icons.add,
+                    onAction: () => context.push('/expenses/new'),
+                    minHeight: 260,
+                  ),
+                )
+              else
+                for (final expense in items) ...[
+                  _ExpenseTile(expense: expense),
+                  const SizedBox(height: 10),
+                ],
+            ],
+          ),
+        );
+      },
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load expenses',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => ref.invalidate(expenseListProvider),
       ),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

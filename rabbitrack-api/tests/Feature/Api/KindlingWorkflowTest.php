@@ -39,6 +39,7 @@ class KindlingWorkflowTest extends TestCase
             'kits_born_alive' => 8,
             'kits_stillborn' => 1,
             'kits_weak' => 2,
+            'birth_weight_value' => 0.640,
             'nest_condition' => 'Clean and warm',
             'doe_condition' => 'Bright',
         ])
@@ -72,6 +73,15 @@ class KindlingWorkflowTest extends TestCase
             'status' => 'open',
             'due_on' => '2026-09-07 00:00:00',
         ]);
+
+        $this->assertDatabaseHas('weight_records', [
+            'litter_id' => Litter::query()->firstOrFail()->id,
+            'stage' => 'birth',
+            'weight_value' => 0.640,
+            'kit_count' => 8,
+            'average_weight_value' => 0.080,
+            'method' => 'Kindling record',
+        ]);
     }
 
     public function test_kindling_can_be_recorded_without_mating_for_farm_doe(): void
@@ -94,6 +104,7 @@ class KindlingWorkflowTest extends TestCase
             'doe_id' => $doe->id,
             'kindled_on' => '2026-08-03',
             'kits_born_alive' => 5,
+            'birth_weight_value' => 0.450,
         ])
             ->assertCreated()
             ->assertJsonPath('data.kits_born_alive', 5)
@@ -117,6 +128,7 @@ class KindlingWorkflowTest extends TestCase
         WeightRecord::factory()->create([
             'farm_id' => $farm->id,
             'litter_id' => $litter->id,
+            'stage' => 'birth',
             'weight_value' => 3.125,
         ]);
 
@@ -126,7 +138,8 @@ class KindlingWorkflowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.identifier', 'LIT-DETAIL')
             ->assertJsonCount(1, 'data.weanings')
-            ->assertJsonCount(1, 'data.weights');
+            ->assertJsonCount(1, 'data.weights')
+            ->assertJsonPath('data.weights.0.stage', 'birth');
     }
 
     public function test_non_member_cannot_record_kindling(): void
@@ -138,6 +151,7 @@ class KindlingWorkflowTest extends TestCase
             'mating_id' => $mating->id,
             'kindled_on' => '2026-08-03',
             'kits_born_alive' => 8,
+            'birth_weight_value' => 0.640,
         ])->assertNotFound();
     }
 

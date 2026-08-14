@@ -33,6 +33,7 @@ class _KindlingCreateScreenState extends ConsumerState<KindlingCreateScreen> {
   final _aliveController = TextEditingController(text: '0');
   final _stillbornController = TextEditingController(text: '0');
   final _weakController = TextEditingController(text: '0');
+  final _birthWeightController = TextEditingController();
   final _nestConditionController = TextEditingController();
   final _doeConditionController = TextEditingController();
   final _notesController = TextEditingController();
@@ -46,6 +47,7 @@ class _KindlingCreateScreenState extends ConsumerState<KindlingCreateScreen> {
     _aliveController.dispose();
     _stillbornController.dispose();
     _weakController.dispose();
+    _birthWeightController.dispose();
     _nestConditionController.dispose();
     _doeConditionController.dispose();
     _notesController.dispose();
@@ -72,6 +74,7 @@ class _KindlingCreateScreenState extends ConsumerState<KindlingCreateScreen> {
             kitsBornAlive: int.tryParse(_aliveController.text) ?? 0,
             kitsStillborn: int.tryParse(_stillbornController.text) ?? 0,
             kitsWeak: int.tryParse(_weakController.text) ?? 0,
+            birthWeightValue: double.tryParse(_birthWeightController.text) ?? 0,
             nestCondition: _optionalText(_nestConditionController),
             doeCondition: _optionalText(_doeConditionController),
             notes: _optionalText(_notesController),
@@ -235,6 +238,23 @@ class _KindlingCreateScreenState extends ConsumerState<KindlingCreateScreen> {
                 _NumberField(controller: _weakController, label: 'Weak'),
                 const SizedBox(height: 14),
                 TextFormField(
+                  controller: _birthWeightController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Birth litter weight kg',
+                    helperText:
+                        'Enter the total litter weight; average per kit is calculated.',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: _requiredWeightValidator,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
                   controller: _nestConditionController,
                   decoration: const InputDecoration(
                     labelText: 'Nest condition',
@@ -317,6 +337,18 @@ class _KindlingCreateScreenState extends ConsumerState<KindlingCreateScreen> {
   String? _optionalText(TextEditingController controller) {
     final value = controller.text.trim();
     return value.isEmpty ? null : value;
+  }
+
+  String? _requiredWeightValidator(String? value) {
+    final weight = double.tryParse(value?.trim() ?? '');
+    if (weight == null) {
+      return 'Enter the litter weight';
+    }
+    if (weight <= 0) {
+      return 'Weight must be greater than zero';
+    }
+
+    return null;
   }
 }
 

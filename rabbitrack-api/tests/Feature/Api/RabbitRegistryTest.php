@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Farm;
 use App\Models\FarmMembership;
+use App\Models\Litter;
 use App\Models\Location;
 use App\Models\Rabbit;
 use App\Models\User;
@@ -39,11 +40,13 @@ class RabbitRegistryTest extends TestCase
         ])
             ->assertCreated()
             ->assertJsonPath('data.identifier', 'DOE-0047')
+            ->assertJsonPath('data.tag_or_tattoo', 'DOE-0047')
             ->assertJsonPath('data.current_location_name', 'Cage 12');
 
         $this->assertDatabaseHas('rabbits', [
             'farm_id' => $farm->id,
             'identifier' => 'DOE-0047',
+            'tag_or_tattoo' => 'DOE-0047',
             'current_location_id' => $location->id,
         ]);
 
@@ -98,6 +101,68 @@ class RabbitRegistryTest extends TestCase
             'breed' => null,
             'colour' => 'White',
         ]);
+    }
+
+    public function test_member_can_register_weaned_kit_from_litter_origin(): void
+    {
+        [$user, $farm] = $this->memberContext();
+        $doe = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'female',
+            'status' => 'available_for_breeding',
+        ]);
+        $buck = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'male',
+            'status' => 'available_for_breeding',
+        ]);
+        $litter = Litter::factory()->create([
+            'farm_id' => $farm->id,
+            'doe_id' => $doe->id,
+            'buck_id' => $buck->id,
+            'kindled_on' => '2026-08-01',
+            'status' => 'weaned',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/rabbits", [
+            'origin_type' => 'born_on_farm',
+            'origin_litter_id' => $litter->id,
+            'sex' => 'female',
+            'status' => 'growing',
+            'tag_or_tattoo' => 'KIT-01',
+            'supplier' => 'Should be ignored',
+            'acquisition_cost' => 20,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.origin_type', 'born_on_farm')
+            ->assertJsonPath('data.origin_litter_id', $litter->id)
+            ->assertJsonPath('data.mother_id', $doe->id)
+            ->assertJsonPath('data.father_id', $buck->id)
+            ->assertJsonPath('data.date_of_birth', '2026-08-01')
+            ->assertJsonPath('data.supplier', null)
+            ->assertJsonPath('data.acquisition_cost', null);
+    }
+
+    public function test_member_cannot_register_kit_from_unweaned_litter(): void
+    {
+        [$user, $farm] = $this->memberContext();
+        $litter = Litter::factory()->create([
+            'farm_id' => $farm->id,
+            'status' => 'nursing',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/rabbits", [
+            'origin_type' => 'born_on_farm',
+            'origin_litter_id' => $litter->id,
+            'sex' => 'female',
+            'status' => 'growing',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('origin_litter_id');
     }
 
     public function test_male_rabbit_cannot_be_registered_as_pregnant_or_nursing(): void

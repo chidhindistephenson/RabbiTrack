@@ -115,8 +115,10 @@ class MatingLitterSummary {
     required this.identifier,
     required this.status,
     this.kindledOn,
-    this.bornAlive,
-    this.bornDead,
+    this.kitsBornAlive,
+    this.kitsStillborn,
+    this.kitsWeak,
+    this.currentLiveCount,
   });
 
   factory MatingLitterSummary.fromJson(Map<String, dynamic> json) {
@@ -124,8 +126,10 @@ class MatingLitterSummary {
       id: json['id'] as String,
       identifier: json['identifier'] as String,
       kindledOn: json['kindled_on'] as String?,
-      bornAlive: json['born_alive'] as int?,
-      bornDead: json['born_dead'] as int?,
+      kitsBornAlive: json['kits_born_alive'] as int?,
+      kitsStillborn: json['kits_stillborn'] as int?,
+      kitsWeak: json['kits_weak'] as int?,
+      currentLiveCount: json['current_live_count'] as int?,
       status: json['status'] as String,
     );
   }
@@ -133,7 +137,9 @@ class MatingLitterSummary {
   final String id;
   final String identifier;
   final String? kindledOn;
-  final int? bornAlive;
-  final int? bornDead;
+  final int? kitsBornAlive;
+  final int? kitsStillborn;
+  final int? kitsWeak;
+  final int? currentLiveCount;
   final String status;
 }

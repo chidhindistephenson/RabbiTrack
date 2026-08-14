@@ -8,5 +8,6 @@ void main() {
     expect(taskStatusLabel('in_review'), 'In review');
     expect(taskDueLabel('2026-08-03', '14:30'), '2026-08-03 at 14:30');
     expect(taskDueLabel('2026-08-03', null), '2026-08-03');
+    expect(taskDueFilterTitle('overdue'), 'Overdue');
   });
 }

@@ -54,6 +54,12 @@ class WeightRecordController extends Controller
             ]);
         }
 
+        if (isset($validated['litter_id'])) {
+            throw ValidationException::withMessages([
+                'litter_id' => ['Litter weights are recorded during kindling and weaning.'],
+            ]);
+        }
+
         if (isset($validated['rabbit_id'])) {
             $rabbit = $farm->rabbits()->whereKey($validated['rabbit_id'])->first();
             if (! $rabbit) {
@@ -69,18 +75,8 @@ class WeightRecordController extends Controller
             }
         }
 
-        if (isset($validated['litter_id'])) {
-            $litter = $farm->litters()->whereKey($validated['litter_id'])->first();
-            if (! $litter) {
-                throw ValidationException::withMessages([
-                    'litter_id' => ['The selected litter does not belong to this farm.'],
-                ]);
-            }
-        }
-
         $record = $farm->weightRecords()->create([
             'rabbit_id' => $validated['rabbit_id'] ?? null,
-            'litter_id' => $validated['litter_id'] ?? null,
             'recorded_by_id' => $request->user()->id,
             'weighed_on' => $validated['weighed_on'],
             'weight_value' => $validated['weight_value'],
@@ -136,9 +132,12 @@ class WeightRecordController extends Controller
             'rabbit_identifier' => $record->rabbit?->identifier,
             'litter_id' => $record->litter_id,
             'litter_identifier' => $record->litter?->identifier,
+            'stage' => $record->stage,
             'weighed_on' => $record->weighed_on?->toDateString(),
             'weight_value' => $record->weight_value,
             'weight_unit' => $record->weight_unit,
+            'kit_count' => $record->kit_count,
+            'average_weight_value' => $record->average_weight_value,
             'method' => $record->method,
             'notes' => $record->notes,
         ];

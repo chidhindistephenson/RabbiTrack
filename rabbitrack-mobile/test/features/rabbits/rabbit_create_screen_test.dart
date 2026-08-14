@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rabbitrack_mobile/src/features/locations/location_controller.dart';
 import 'package:rabbitrack_mobile/src/features/locations/location_models.dart';
+import 'package:rabbitrack_mobile/src/features/litters/litter_controller.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_controller.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_create_screen.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_models.dart';
@@ -16,7 +17,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [locationListProvider.overrideWith((ref) async => [])],
+        overrides: [
+          locationListProvider.overrideWith((ref) async => []),
+          litterListProvider.overrideWith((ref) async => []),
+        ],
         child: const MaterialApp(home: RabbitCreateScreen()),
       ),
     );
@@ -30,7 +34,14 @@ void main() {
     expect(find.widgetWithText(TextFormField, 'Name'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, 'Date of birth'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, 'Weight'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'Tag or tattoo'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'Existing physical mark'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Leave blank to use the assigned Rabbit ID on the animal.'),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(TextFormField, 'Notes'), findsOneWidget);
     expect(find.text('No location'), findsOneWidget);
     expect(find.text('No breed selected'), findsOneWidget);
@@ -46,6 +57,7 @@ void main() {
         ProviderScope(
           overrides: [
             locationListProvider.overrideWith((ref) async => _locations),
+            litterListProvider.overrideWith((ref) async => []),
             rabbitParentOptionsProvider.overrideWith(
               (ref) async => _parentRabbits,
             ),
@@ -79,7 +91,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [locationListProvider.overrideWith((ref) async => [])],
+        overrides: [
+          locationListProvider.overrideWith((ref) async => []),
+          litterListProvider.overrideWith((ref) async => []),
+        ],
         child: const MaterialApp(home: RabbitCreateScreen()),
       ),
     );
@@ -102,7 +117,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [locationListProvider.overrideWith((ref) async => [])],
+        overrides: [
+          locationListProvider.overrideWith((ref) async => []),
+          litterListProvider.overrideWith((ref) async => []),
+        ],
         child: const MaterialApp(home: RabbitCreateScreen()),
       ),
     );
@@ -131,6 +149,7 @@ void main() {
       ProviderScope(
         overrides: [
           locationListProvider.overrideWith((ref) async => []),
+          litterListProvider.overrideWith((ref) async => []),
           rabbitParentOptionsProvider.overrideWith(
             (ref) async => _parentRabbits,
           ),

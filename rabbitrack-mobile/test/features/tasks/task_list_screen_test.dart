@@ -17,6 +17,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Task focus'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Today'), findsAtLeastNWidgets(1));
+    expect(find.text('Overdue'), findsAtLeastNWidgets(1));
+    expect(find.text('Upcoming'), findsOneWidget);
     expect(find.text('Prepare nest box'), findsOneWidget);
     expect(
       find.text(

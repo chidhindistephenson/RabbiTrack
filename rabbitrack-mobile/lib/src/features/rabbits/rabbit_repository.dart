@@ -57,6 +57,11 @@ class RabbitRepository {
     String? notes,
     String? motherId,
     String? fatherId,
+    String? originType,
+    String? originLitterId,
+    String? supplier,
+    String? acquiredAt,
+    String? acquisitionCost,
   }) async {
     final response = await dio.post<Map<String, dynamic>>(
       '/farms/$farmId/rabbits',
@@ -74,6 +79,11 @@ class RabbitRepository {
         'notes': ?notes,
         'mother_id': ?motherId,
         'father_id': ?fatherId,
+        'origin_type': ?originType,
+        'origin_litter_id': ?originLitterId,
+        'supplier': ?supplier,
+        'acquired_at': ?acquiredAt,
+        'acquisition_cost': ?acquisitionCost,
       },
       options: _authOptions(),
     );
