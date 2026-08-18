@@ -4,7 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/app.dart';
 import 'src/theme/rabbitrack_colors.dart';
 
-void main() {
+import 'src/features/tasks/task_reminder_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await TaskReminderService.instance.initialize();
+
   ErrorWidget.builder = (details) {
     FlutterError.presentError(details);
 

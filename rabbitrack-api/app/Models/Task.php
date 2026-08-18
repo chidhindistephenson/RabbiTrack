@@ -20,6 +20,7 @@ class Task extends Model
         'expected_kindling',
         'weaning',
         'kit_identification',
+        'retirement_review',
         'manual',
     ];
 

@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rabbitrack_mobile/src/features/tasks/task_repository.dart';
+import 'package:rabbitrack_mobile/src/shared/offline_action_queue.dart';
 
 void main() {
   test('TaskRepository.list sends open status and due filter', () async {
@@ -19,6 +21,49 @@ void main() {
     expect(adapter.queryParameters, containsPair('status', 'open'));
     expect(adapter.queryParameters, containsPair('due', 'overdue'));
     expect(tasks.single.title, 'Prepare nest box');
+  });
+
+  test('TaskRepository queues complete action when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = TaskRepository(
+      dio: dio,
+      token: 'token',
+      offlineQueue: queue,
+    );
+
+    await repository.complete(farmId: 'farm-1', taskId: 'task-1');
+
+    expect(await queue.pendingCount(), 1);
+  });
+
+  test('TaskRepository queues create action when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = TaskRepository(
+      dio: dio,
+      token: 'token',
+      offlineQueue: queue,
+    );
+
+    final task = await repository.create(
+      farmId: 'farm-1',
+      title: 'Check feeders',
+      dueOn: '2026-08-17',
+      dueTime: '08:30',
+      priority: 'normal',
+      description: 'Morning round',
+    );
+
+    expect(task.id, startsWith('local-'));
+    expect(task.title, 'Check feeders');
+    expect(await queue.pendingCount(), 1);
   });
 }
 
@@ -58,6 +103,24 @@ class _CapturingAdapter implements HttpClientAdapter {
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _OfflineAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    throw DioException(
+      requestOptions: options,
+      type: DioExceptionType.connectionError,
+      error: const SocketException('offline'),
     );
   }
 

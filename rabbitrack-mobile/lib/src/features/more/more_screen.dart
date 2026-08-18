@@ -66,6 +66,30 @@ class MoreScreen extends ConsumerWidget {
               onTap: () => context.push('/litters'),
             ),
             _MoreTile(
+              title: 'Breeding calendar',
+              subtitle: 'Mating, checks, kindling, and weaning dates',
+              icon: Icons.event_available_outlined,
+              onTap: () => context.push('/reports/breeding-calendar'),
+            ),
+            _MoreTile(
+              title: 'Population report',
+              subtitle: 'Counts by sex, status, breed, and location',
+              icon: Icons.groups_outlined,
+              onTap: () => context.push('/reports/population'),
+            ),
+            _MoreTile(
+              title: 'Health report',
+              subtitle: 'Treatments, medicine, mortality, and withdrawals',
+              icon: Icons.health_and_safety_outlined,
+              onTap: () => context.push('/reports/health'),
+            ),
+            _MoreTile(
+              title: 'Litter performance',
+              subtitle: 'Survival, weaning, mortality, and weights',
+              icon: Icons.child_friendly_outlined,
+              onTap: () => context.push('/reports/litters/performance'),
+            ),
+            _MoreTile(
               title: 'Weights',
               subtitle: 'Growth records and current weights',
               icon: Icons.monitor_weight,

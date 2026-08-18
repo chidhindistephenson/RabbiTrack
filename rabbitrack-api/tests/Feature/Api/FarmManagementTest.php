@@ -26,7 +26,11 @@ class FarmManagementTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.name', 'Second Rabbitry')
             ->assertJsonPath('data.currency', 'USD')
-            ->assertJsonPath('data.role', 'owner');
+            ->assertJsonPath('data.role', 'owner')
+            ->assertJsonPath('data.settings.sale_ready_min_age_days', 70)
+            ->assertJsonPath('data.settings.sale_ready_min_weight_kg', 2)
+            ->assertJsonPath('data.settings.breeding_min_doe_age_days', 0)
+            ->assertJsonPath('data.settings.breeding_min_buck_age_days', 0);
 
         $this->assertDatabaseHas('farms', [
             'name' => 'Second Rabbitry',
@@ -56,11 +60,21 @@ class FarmManagementTest extends TestCase
             'name' => 'Updated Rabbitry',
             'currency' => 'usd',
             'timezone' => 'Africa/Harare',
+            'sale_ready_min_age_days' => 84,
+            'sale_ready_min_weight_kg' => 2.4,
+            'retirement_review_litter_threshold' => 6,
+            'breeding_min_doe_age_days' => 150,
+            'breeding_min_buck_age_days' => 120,
         ])
             ->assertOk()
             ->assertJsonPath('data.name', 'Updated Rabbitry')
             ->assertJsonPath('data.currency', 'USD')
-            ->assertJsonPath('data.timezone', 'Africa/Harare');
+            ->assertJsonPath('data.timezone', 'Africa/Harare')
+            ->assertJsonPath('data.settings.sale_ready_min_age_days', 84)
+            ->assertJsonPath('data.settings.sale_ready_min_weight_kg', 2.4)
+            ->assertJsonPath('data.settings.retirement_review_litter_threshold', 6)
+            ->assertJsonPath('data.settings.breeding_min_doe_age_days', 150)
+            ->assertJsonPath('data.settings.breeding_min_buck_age_days', 120);
 
         $this->assertDatabaseHas('farms', [
             'id' => $farm->id,

@@ -32,4 +32,17 @@ class FinanceReportRepository {
       response.data!['data'] as Map<String, dynamic>,
     );
   }
+
+  Future<String> exportCsv(String farmId) async {
+    final response = await dio.get<String>(
+      '/farms/$farmId/reports/finance/monthly',
+      queryParameters: {'format': 'csv'},
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        responseType: ResponseType.plain,
+      ),
+    );
+
+    return response.data ?? '';
+  }
 }

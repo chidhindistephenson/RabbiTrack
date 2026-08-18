@@ -7,10 +7,11 @@ use App\Models\Farm;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class FinanceReportController extends Controller
 {
-    public function monthly(Request $request, Farm $farm): JsonResponse
+    public function monthly(Request $request, Farm $farm): JsonResponse|Response
     {
         $this->authorizeFarmAccess($request, $farm);
 
@@ -42,12 +43,29 @@ class FinanceReportController extends Controller
             ];
         });
 
-        return response()->json([
+        $payload = [
             'data' => [
                 'currency' => $farm->currency,
                 'months' => $months,
             ],
-        ]);
+        ];
+
+        if ($request->query('format') === 'csv') {
+            return $this->csvResponse(
+                'finance-report.csv',
+                ['month', 'label', 'currency', 'revenue', 'expenses', 'net_income'],
+                $months->map(fn (array $month) => [
+                    $month['month'],
+                    $month['label'],
+                    $farm->currency,
+                    $month['revenue'],
+                    $month['expenses'],
+                    $month['net_income'],
+                ])->all(),
+            );
+        }
+
+        return response()->json($payload);
     }
 
     private function authorizeFarmAccess(Request $request, Farm $farm): void
@@ -59,5 +77,24 @@ class FinanceReportController extends Controller
             ->exists();
 
         abort_unless($hasAccess, 404);
+    }
+
+    private function csvResponse(string $filename, array $header, array $rows): Response
+    {
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $header);
+
+        foreach ($rows as $row) {
+            fputcsv($handle, $row);
+        }
+
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
     }
 }

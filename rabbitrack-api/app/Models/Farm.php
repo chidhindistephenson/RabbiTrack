@@ -77,6 +77,16 @@ class Farm extends Model
         return $this->hasMany(Litter::class);
     }
 
+    public function litterChecks(): HasMany
+    {
+        return $this->hasMany(LitterCheck::class);
+    }
+
+    public function litterFosters(): HasMany
+    {
+        return $this->hasMany(LitterFoster::class);
+    }
+
     public function kindlings(): HasMany
     {
         return $this->hasMany(Kindling::class);

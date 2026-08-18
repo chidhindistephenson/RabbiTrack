@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api_error_messages.dart';
+import '../../shared/offline_action_queue.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'weight_models.dart';
@@ -8,14 +10,23 @@ import 'weight_models.dart';
 final weightRepositoryProvider = Provider<WeightRepository>((ref) {
   final session = ref.watch(authControllerProvider).valueOrNull;
 
-  return WeightRepository(dio: ref.watch(dioProvider), token: session?.token);
+  return WeightRepository(
+    dio: ref.watch(dioProvider),
+    token: session?.token,
+    offlineQueue: ref.watch(offlineActionQueueProvider),
+  );
 });
 
 class WeightRepository {
-  const WeightRepository({required this.dio, required this.token});
+  const WeightRepository({
+    required this.dio,
+    required this.token,
+    this.offlineQueue,
+  });
 
   final Dio dio;
   final String? token;
+  final OfflineActionQueue? offlineQueue;
 
   Future<List<WeightSummary>> list(
     String farmId, {
@@ -42,25 +53,55 @@ class WeightRepository {
     String? method,
     String? notes,
   }) async {
-    final response = await dio.post<Map<String, dynamic>>(
-      '/farms/$farmId/weights',
-      data: {
-        'rabbit_id': rabbitId,
-        'weighed_on': DateTime.now().toIso8601String(),
-        'weight_value': weightValue,
-        'weight_unit': 'kg',
-        'method': method ?? 'field entry',
-        'notes': ?notes,
-      },
-      options: _authOptions(),
-    );
+    final weighedOn = DateTime.now();
+    final data = {
+      'rabbit_id': rabbitId,
+      'weighed_on': weighedOn.toIso8601String(),
+      'weight_value': weightValue,
+      'weight_unit': 'kg',
+      'method': method ?? 'field entry',
+      'notes': ?notes,
+    };
 
-    return WeightSummary.fromJson(
-      response.data!['data'] as Map<String, dynamic>,
-    );
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/farms/$farmId/weights',
+        data: data,
+        options: _authOptions(),
+      );
+
+      return WeightSummary.fromJson(
+        response.data!['data'] as Map<String, dynamic>,
+      );
+    } on DioException catch (error) {
+      if (!isApiConnectionProblem(error) || offlineQueue == null) {
+        rethrow;
+      }
+
+      await offlineQueue!.enqueue(
+        method: 'POST',
+        path: '/farms/$farmId/weights',
+        data: data,
+        headers: _authHeaders(),
+      );
+
+      return WeightSummary(
+        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+        rabbitIdentifier: 'Pending rabbit',
+        weighedOn: weighedOn.toIso8601String().split('T').first,
+        weightValue: weightValue.toStringAsFixed(3),
+        weightUnit: 'kg',
+        method: method ?? 'field entry',
+        notes: notes,
+      );
+    }
   }
 
   Options _authOptions() {
-    return Options(headers: {'Authorization': 'Bearer $token'});
+    return Options(headers: _authHeaders());
+  }
+
+  Map<String, dynamic> _authHeaders() {
+    return {'Authorization': 'Bearer $token'};
   }
 }

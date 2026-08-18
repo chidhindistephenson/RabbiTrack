@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Farm;
+use App\Models\Rabbit;
 use App\Models\Sale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -76,6 +78,8 @@ class SaleController extends Controller
             ]);
         }
 
+        $this->assertSaleAllowed($rabbit, Carbon::parse($validated['sold_on']));
+
         $sale = DB::transaction(function () use ($request, $farm, $rabbit, $validated) {
             $sale = $farm->sales()->create([
                 'rabbit_id' => $rabbit->id,
@@ -142,6 +146,70 @@ class SaleController extends Controller
             ->exists();
 
         abort_unless($hasAccess, 404);
+    }
+
+    private function assertSaleAllowed(Rabbit $rabbit, Carbon $soldOn): void
+    {
+        if (in_array($rabbit->status, ['under_treatment', 'quarantined'], true)) {
+            throw ValidationException::withMessages([
+                'rabbit_id' => ['Resolve treatment or quarantine before recording this sale.'],
+            ]);
+        }
+
+        if (
+            $rabbit->healthEvents()
+                ->whereIn('status', ['open', 'monitoring'])
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'rabbit_id' => ['Resolve active health events before recording this sale.'],
+            ]);
+        }
+
+        $settings = $rabbit->farm?->settings ?? [];
+        $minAgeDays = (int) ($settings['sale_ready_min_age_days'] ?? 0);
+        if ($minAgeDays > 0) {
+            if ($rabbit->date_of_birth === null) {
+                throw ValidationException::withMessages([
+                    'rabbit_id' => ['Record date of birth before recording this sale.'],
+                ]);
+            }
+
+            if ($rabbit->date_of_birth->diffInDays($soldOn) < $minAgeDays) {
+                throw ValidationException::withMessages([
+                    'rabbit_id' => ["Rabbit must be at least {$minAgeDays} days old before sale."],
+                ]);
+            }
+        }
+
+        $minWeightKg = $settings['sale_ready_min_weight_kg'] ?? null;
+        if ($minWeightKg !== null && (float) $minWeightKg > 0) {
+            if ($rabbit->weight_value === null) {
+                throw ValidationException::withMessages([
+                    'rabbit_id' => ['Record current weight before recording this sale.'],
+                ]);
+            }
+
+            if ((float) $rabbit->weight_value < (float) $minWeightKg) {
+                throw ValidationException::withMessages([
+                    'rabbit_id' => ["Rabbit must weigh at least {$minWeightKg} kg before sale."],
+                ]);
+            }
+        }
+
+        $withdrawal = $rabbit->treatments()
+            ->whereNotNull('withdrawal_ends_on')
+            ->whereDate('withdrawal_ends_on', '>=', $soldOn->toDateString())
+            ->orderByDesc('withdrawal_ends_on')
+            ->first();
+
+        if ($withdrawal) {
+            throw ValidationException::withMessages([
+                'rabbit_id' => [
+                    "This rabbit is under medicine withdrawal until {$withdrawal->withdrawal_ends_on->toDateString()}.",
+                ],
+            ]);
+        }
     }
 
     private function salePayload(Sale $sale): array

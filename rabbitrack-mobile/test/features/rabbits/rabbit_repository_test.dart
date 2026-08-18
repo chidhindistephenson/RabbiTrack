@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_repository.dart';
+import 'package:rabbitrack_mobile/src/shared/offline_action_queue.dart';
 
 void main() {
   test('RabbitRepository.list sends breed filters', () async {
@@ -92,6 +94,57 @@ void main() {
     expect(data.containsKey('current_location_id'), isFalse);
   });
 
+  test('RabbitRepository queues create action when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = RabbitRepository(
+      dio: dio,
+      token: 'test-token',
+      offlineQueue: queue,
+    );
+
+    final rabbit = await repository.create(
+      farmId: 'farm-1',
+      name: 'Offline Doe',
+      sex: 'female',
+      status: 'growing',
+      breed: 'Rex',
+    );
+
+    expect(rabbit.id, startsWith('local-'));
+    expect(rabbit.identifier, 'Pending ID');
+    expect(rabbit.name, 'Offline Doe');
+    expect(await queue.pendingCount(), 1);
+  });
+
+  test('RabbitRepository queues movement action when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = RabbitRepository(
+      dio: dio,
+      token: 'test-token',
+      offlineQueue: queue,
+    );
+
+    final movement = await repository.move(
+      farmId: 'farm-1',
+      rabbitId: 'rabbit-1',
+      toLocationId: 'location-2',
+      reason: 'Cage cleaning',
+    );
+
+    expect(movement.id, startsWith('local-'));
+    expect(movement.rabbitId, 'rabbit-1');
+    expect(movement.toLocationId, 'location-2');
+    expect(await queue.pendingCount(), 1);
+  });
+
   test('RabbitRepository.updateStatus sends notes when supplied', () async {
     final adapter = _CapturingAdapter();
     final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
@@ -126,6 +179,30 @@ void main() {
 
     expect(adapter.requestData, containsPair('status', 'pregnant'));
     expect(adapter.requestData.containsKey('notes'), isFalse);
+  });
+
+  test('RabbitRepository queues status update when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = RabbitRepository(
+      dio: dio,
+      token: 'test-token',
+      offlineQueue: queue,
+    );
+
+    final rabbit = await repository.updateStatus(
+      farmId: 'farm-1',
+      rabbitId: 'rabbit-1',
+      status: 'ready_for_sale',
+      notes: 'Offline status change',
+    );
+
+    expect(rabbit.id, 'rabbit-1');
+    expect(rabbit.status, 'ready_for_sale');
+    expect(await queue.pendingCount(), 1);
   });
 
   test(
@@ -198,6 +275,33 @@ void main() {
     expect(adapter.requestData.containsKey('weight_value'), isTrue);
     expect(adapter.requestData['weight_value'], isNull);
   });
+
+  test('RabbitRepository queues profile update when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = RabbitRepository(
+      dio: dio,
+      token: 'test-token',
+      offlineQueue: queue,
+    );
+
+    final rabbit = await repository.updateProfile(
+      farmId: 'farm-1',
+      rabbitId: 'rabbit-1',
+      name: 'Offline Rex',
+      sex: 'male',
+      status: 'growing',
+      breed: 'Rex',
+    );
+
+    expect(rabbit.id, 'rabbit-1');
+    expect(rabbit.name, 'Offline Rex');
+    expect(rabbit.sex, 'male');
+    expect(await queue.pendingCount(), 1);
+  });
 }
 
 class _CapturingAdapter implements HttpClientAdapter {
@@ -219,35 +323,63 @@ class _CapturingAdapter implements HttpClientAdapter {
         ? Map<String, dynamic>.from(options.data as Map)
         : <String, dynamic>{};
 
+    final responseData = options.uri.path.endsWith('/movements')
+        ? {
+            'id': 'movement-1',
+            'rabbit_id': 'rabbit-1',
+            'from_location_id': 'location-1',
+            'to_location_id': requestData['to_location_id'],
+            'moved_at': '2026-08-17T12:00:00Z',
+            'reason': requestData['reason'],
+            'notes': requestData['notes'],
+          }
+        : options.method == 'GET'
+        ? [
+            {
+              'id': 'rabbit-1',
+              'identifier': 'DOE-0048',
+              'sex': 'female',
+              'breed': 'New Zealand White',
+              'status': 'growing',
+            },
+          ]
+        : {
+            'id': 'rabbit-1',
+            'identifier': 'DOE-0048',
+            'name': requestData['name'],
+            'sex': requestData['sex'] ?? 'female',
+            'breed': requestData['breed'],
+            'status': requestData['status'],
+            'current_location_name':
+                requestData.containsKey('current_location_id')
+                ? 'Cage 1'
+                : null,
+          };
+
     return ResponseBody.fromString(
-      jsonEncode({
-        'data': options.method == 'GET'
-            ? [
-                {
-                  'id': 'rabbit-1',
-                  'identifier': 'DOE-0048',
-                  'sex': 'female',
-                  'breed': 'New Zealand White',
-                  'status': 'growing',
-                },
-              ]
-            : {
-                'id': 'rabbit-1',
-                'identifier': 'DOE-0048',
-                'name': requestData['name'],
-                'sex': requestData['sex'] ?? 'female',
-                'breed': requestData['breed'],
-                'status': requestData['status'],
-                'current_location_name':
-                    requestData.containsKey('current_location_id')
-                    ? 'Cage 1'
-                    : null,
-              },
-      }),
+      jsonEncode({'data': responseData}),
       201,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _OfflineAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    throw DioException(
+      requestOptions: options,
+      type: DioExceptionType.connectionError,
+      error: const SocketException('offline'),
     );
   }
 

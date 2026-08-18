@@ -52,6 +52,7 @@ class MatingController extends Controller
             'outcome' => ['nullable', 'string', Rule::in(Mating::OUTCOMES)],
             'behavior_observed' => ['nullable', 'string', 'max:160'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'confirm_relationship_risk' => ['nullable', 'boolean'],
         ]);
 
         $doe = $this->farmRabbit($farm, $validated['doe_id']);
@@ -69,17 +70,10 @@ class MatingController extends Controller
             ]);
         }
 
-        if ($this->isTerminalRabbitStatus($doe->status)) {
-            throw ValidationException::withMessages([
-                'doe_id' => ['This doe is no longer active on the farm.'],
-            ]);
-        }
+        $matedAt = Carbon::parse($validated['mated_at']);
 
-        if ($this->isTerminalRabbitStatus($buck->status)) {
-            throw ValidationException::withMessages([
-                'buck_id' => ['This buck is no longer active on the farm.'],
-            ]);
-        }
+        $this->assertBreedingEligibility($farm, $doe, 'doe_id', 'doe', $matedAt);
+        $this->assertBreedingEligibility($farm, $buck, 'buck_id', 'buck', $matedAt);
 
         if (in_array($doe->status, ['awaiting_pregnancy_check', 'pregnant'], true)) {
             throw ValidationException::withMessages([
@@ -98,7 +92,13 @@ class MatingController extends Controller
             ]);
         }
 
-        $matedAt = Carbon::parse($validated['mated_at']);
+        $relationshipWarning = $this->relationshipWarning($doe, $buck);
+        if ($relationshipWarning !== null && ! (bool) ($validated['confirm_relationship_risk'] ?? false)) {
+            throw ValidationException::withMessages([
+                'confirm_relationship_risk' => [$relationshipWarning.' Confirm the relationship risk before recording this mating.'],
+            ]);
+        }
+
         $dates = $this->breedingDates($farm, $matedAt);
 
         $mating = $farm->matings()->create([
@@ -230,6 +230,96 @@ class MatingController extends Controller
             'expected_kindling_on' => $matedAt->copy()->addDays($gestationDays)->toDateString(),
             'nest_box_due_on' => $matedAt->copy()->addDays($gestationDays - $nestBoxLeadDays)->toDateString(),
         ];
+    }
+
+    private function assertBreedingEligibility(
+        Farm $farm,
+        Rabbit $rabbit,
+        string $field,
+        string $role,
+        Carbon $matedAt
+    ): void {
+        if ($this->isTerminalRabbitStatus($rabbit->status)) {
+            throw ValidationException::withMessages([
+                $field => ["This {$role} is no longer active on the farm."],
+            ]);
+        }
+
+        if (in_array($rabbit->status, ['under_treatment', 'quarantined', 'ready_for_sale'], true)) {
+            throw ValidationException::withMessages([
+                $field => ["This {$role} is not available for breeding because of its current status."],
+            ]);
+        }
+
+        $hasActiveHealthEvent = $rabbit->healthEvents()
+            ->whereIn('status', ['open', 'monitoring'])
+            ->exists();
+
+        if ($hasActiveHealthEvent) {
+            throw ValidationException::withMessages([
+                $field => ["Resolve this {$role}'s active health events before mating."],
+            ]);
+        }
+
+        $settings = $farm->settings ?? [];
+        $minAgeDays = (int) ($role === 'doe'
+            ? ($settings['breeding_min_doe_age_days'] ?? 0)
+            : ($settings['breeding_min_buck_age_days'] ?? 0));
+
+        if ($minAgeDays <= 0) {
+            return;
+        }
+
+        if ($rabbit->date_of_birth === null) {
+            throw ValidationException::withMessages([
+                $field => ["Add this {$role}'s birth date before checking breeding age."],
+            ]);
+        }
+
+        $birthDate = $rabbit->date_of_birth->copy()->startOfDay();
+        $matingDate = $matedAt->copy()->startOfDay();
+
+        if ($birthDate->isAfter($matingDate) || $birthDate->diffInDays($matingDate) < $minAgeDays) {
+            throw ValidationException::withMessages([
+                $field => ["This {$role} is younger than the farm's minimum breeding age."],
+            ]);
+        }
+    }
+
+    private function relationshipWarning(Rabbit $doe, Rabbit $buck): ?string
+    {
+        if ($doe->mother_id !== null && $doe->mother_id === $buck->id) {
+            return 'The selected buck is recorded as the doe\'s mother.';
+        }
+
+        if ($doe->father_id !== null && $doe->father_id === $buck->id) {
+            return 'The selected buck is recorded as the doe\'s father.';
+        }
+
+        if ($buck->mother_id !== null && $buck->mother_id === $doe->id) {
+            return 'The selected doe is recorded as the buck\'s mother.';
+        }
+
+        if ($buck->father_id !== null && $buck->father_id === $doe->id) {
+            return 'The selected doe is recorded as the buck\'s father.';
+        }
+
+        $sharedMother = $doe->mother_id !== null && $doe->mother_id === $buck->mother_id;
+        $sharedFather = $doe->father_id !== null && $doe->father_id === $buck->father_id;
+
+        if ($sharedMother && $sharedFather) {
+            return 'The selected rabbits share both recorded parents.';
+        }
+
+        if ($sharedMother) {
+            return 'The selected rabbits share the same recorded mother.';
+        }
+
+        if ($sharedFather) {
+            return 'The selected rabbits share the same recorded father.';
+        }
+
+        return null;
     }
 
     private function createMatingTasks(Farm $farm, Mating $mating, Rabbit $doe): void

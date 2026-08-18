@@ -153,6 +153,10 @@ class _RabbitStatusScreenState extends ConsumerState<RabbitStatusScreen> {
                         .toList(),
                     onChanged: (value) => setState(() => _status = value!),
                   ),
+                  if (_status == 'ready_for_sale') ...[
+                    const SizedBox(height: 12),
+                    const _ReadinessNotice(),
+                  ],
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _notesController,
@@ -187,6 +191,42 @@ class _RabbitStatusScreenState extends ConsumerState<RabbitStatusScreen> {
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
         ),
+      ),
+    );
+  }
+}
+
+class _ReadinessNotice extends StatelessWidget {
+  const _ReadinessNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: RabbiTrackColors.warmTan.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: RabbiTrackColors.warmTan),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.health_and_safety_outlined,
+            color: RabbiTrackColors.forestGreen,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Sale readiness is checked against active health events, quarantine, treatment and medicine withdrawal periods.',
+              style: TextStyle(
+                color: RabbiTrackColors.forestGreen,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

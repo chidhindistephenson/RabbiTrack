@@ -10,6 +10,7 @@ use App\Models\Rabbit;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -241,6 +242,7 @@ class RabbitController extends Controller
         $this->assertStatusAllowedForSex($validated['sex'] ?? $rabbit->sex, $validated['status']);
         $this->assertTerminalRabbitProfileIsLocked($rabbit);
         $this->assertSoldStatusUsesSaleFlow($validated['status']);
+        $this->assertSaleReadinessAllowed($rabbit, $validated['status']);
         $this->assertSexChangeKeepsExistingParentLinksValid($farm, $rabbit, $validated['sex'] ?? $rabbit->sex);
 
         $editableFields = [
@@ -449,6 +451,74 @@ class RabbitController extends Controller
         throw ValidationException::withMessages([
             'status' => ['Record a sale to mark this rabbit as sold.'],
         ]);
+    }
+
+    private function assertSaleReadinessAllowed(Rabbit $rabbit, string $status): void
+    {
+        if ($status !== 'ready_for_sale') {
+            return;
+        }
+
+        if (in_array($rabbit->status, ['under_treatment', 'quarantined'], true)) {
+            throw ValidationException::withMessages([
+                'status' => ['Resolve treatment or quarantine before marking this rabbit ready for sale.'],
+            ]);
+        }
+
+        if (
+            $rabbit->healthEvents()
+                ->whereIn('status', ['open', 'monitoring'])
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'status' => ['Resolve active health events before marking this rabbit ready for sale.'],
+            ]);
+        }
+
+        $settings = $rabbit->farm?->settings ?? [];
+        $minAgeDays = (int) ($settings['sale_ready_min_age_days'] ?? 0);
+        if ($minAgeDays > 0) {
+            if ($rabbit->date_of_birth === null) {
+                throw ValidationException::withMessages([
+                    'status' => ['Record date of birth before marking this rabbit ready for sale.'],
+                ]);
+            }
+
+            if ($rabbit->date_of_birth->diffInDays(Carbon::today()) < $minAgeDays) {
+                throw ValidationException::withMessages([
+                    'status' => ["Rabbit must be at least {$minAgeDays} days old before sale readiness."],
+                ]);
+            }
+        }
+
+        $minWeightKg = $settings['sale_ready_min_weight_kg'] ?? null;
+        if ($minWeightKg !== null && (float) $minWeightKg > 0) {
+            if ($rabbit->weight_value === null) {
+                throw ValidationException::withMessages([
+                    'status' => ['Record current weight before marking this rabbit ready for sale.'],
+                ]);
+            }
+
+            if ((float) $rabbit->weight_value < (float) $minWeightKg) {
+                throw ValidationException::withMessages([
+                    'status' => ["Rabbit must weigh at least {$minWeightKg} kg before sale readiness."],
+                ]);
+            }
+        }
+
+        $withdrawal = $rabbit->treatments()
+            ->whereNotNull('withdrawal_ends_on')
+            ->whereDate('withdrawal_ends_on', '>=', Carbon::today()->toDateString())
+            ->orderByDesc('withdrawal_ends_on')
+            ->first();
+
+        if ($withdrawal) {
+            throw ValidationException::withMessages([
+                'status' => [
+                    "This rabbit is under medicine withdrawal until {$withdrawal->withdrawal_ends_on->toDateString()}.",
+                ],
+            ]);
+        }
     }
 
     private function normalizeOriginAttributes(Farm $farm, array &$validated): void

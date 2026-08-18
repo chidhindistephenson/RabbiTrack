@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api_error_messages.dart';
+import '../../shared/offline_action_queue.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'task_models.dart';
@@ -8,14 +10,23 @@ import 'task_models.dart';
 final taskRepositoryProvider = Provider<TaskRepository>((ref) {
   final session = ref.watch(authControllerProvider).valueOrNull;
 
-  return TaskRepository(dio: ref.watch(dioProvider), token: session?.token);
+  return TaskRepository(
+    dio: ref.watch(dioProvider),
+    token: session?.token,
+    offlineQueue: ref.watch(offlineActionQueueProvider),
+  );
 });
 
 class TaskRepository {
-  const TaskRepository({required this.dio, required this.token});
+  const TaskRepository({
+    required this.dio,
+    required this.token,
+    this.offlineQueue,
+  });
 
   final Dio dio;
   final String? token;
+  final OfflineActionQueue? offlineQueue;
 
   Future<List<TaskSummary>> list(String farmId, {String? due}) async {
     final response = await dio.get<Map<String, dynamic>>(
@@ -52,57 +63,115 @@ class TaskRepository {
     String? rabbitId,
     String? locationId,
   }) async {
-    final response = await dio.post<Map<String, dynamic>>(
-      '/farms/$farmId/tasks',
-      data: {
-        'title': title,
-        'description': description,
-        'due_on': dueOn,
-        'due_time': dueTime,
-        'priority': priority,
-        'rabbit_id': rabbitId,
-        'location_id': locationId,
-      },
-      options: _authOptions(),
-    );
+    final data = {
+      'title': title,
+      'description': description,
+      'due_on': dueOn,
+      'due_time': dueTime,
+      'priority': priority,
+      'rabbit_id': rabbitId,
+      'location_id': locationId,
+    };
 
-    return TaskSummary.fromJson(response.data!['data'] as Map<String, dynamic>);
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/farms/$farmId/tasks',
+        data: data,
+        options: _authOptions(),
+      );
+
+      return TaskSummary.fromJson(
+        response.data!['data'] as Map<String, dynamic>,
+      );
+    } on DioException catch (error) {
+      if (!isApiConnectionProblem(error) || offlineQueue == null) {
+        rethrow;
+      }
+
+      await offlineQueue!.enqueue(
+        method: 'POST',
+        path: '/farms/$farmId/tasks',
+        data: data,
+        headers: _authHeaders(),
+      );
+
+      return TaskSummary(
+        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+        type: 'manual',
+        title: title,
+        description: description,
+        dueOn: dueOn,
+        dueTime: dueTime,
+        priority: priority,
+        status: 'open',
+      );
+    }
   }
 
   Future<void> complete({
     required String farmId,
     required String taskId,
   }) async {
-    await dio.patch<Map<String, dynamic>>(
-      '/farms/$farmId/tasks/$taskId',
+    await _patchTaskAction(
+      farmId: farmId,
+      taskId: taskId,
       data: {'action': 'complete'},
-      options: _authOptions(),
     );
   }
 
   Future<void> cancel({required String farmId, required String taskId}) async {
-    await dio.patch<Map<String, dynamic>>(
-      '/farms/$farmId/tasks/$taskId',
+    await _patchTaskAction(
+      farmId: farmId,
+      taskId: taskId,
       data: {'action': 'cancel'},
-      options: _authOptions(),
     );
   }
 
-  Future<TaskSummary> reschedule({
+  Future<void> reschedule({
     required String farmId,
     required String taskId,
     required String dueOn,
   }) async {
-    final response = await dio.patch<Map<String, dynamic>>(
-      '/farms/$farmId/tasks/$taskId',
+    await _patchTaskAction(
+      farmId: farmId,
+      taskId: taskId,
       data: {'action': 'reschedule', 'due_on': dueOn},
-      options: _authOptions(),
     );
-
-    return TaskSummary.fromJson(response.data!['data'] as Map<String, dynamic>);
   }
 
   Options _authOptions() {
-    return Options(headers: {'Authorization': 'Bearer $token'});
+    return Options(headers: _authHeaders());
+  }
+
+  Future<void> _patchTaskAction({
+    required String farmId,
+    required String taskId,
+    required Map<String, dynamic> data,
+  }) async {
+    final path = '/farms/$farmId/tasks/$taskId';
+    final headers = _authHeaders();
+
+    try {
+      await dio.patch<Map<String, dynamic>>(
+        path,
+        data: data,
+        options: Options(headers: headers),
+      );
+    } on DioException catch (error) {
+      if (!isApiConnectionProblem(error) || offlineQueue == null) {
+        rethrow;
+      }
+
+      await offlineQueue!.enqueue(
+        method: 'PATCH',
+        path: path,
+        data: data,
+        headers: headers,
+      );
+    }
+  }
+
+  Map<String, dynamic> _authHeaders() {
+    return {'Authorization': 'Bearer $token'};
   }
 }

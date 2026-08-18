@@ -6,6 +6,7 @@ String taskTypeLabel(String type) {
     'expected_kindling' => 'Kindling',
     'weaning' => 'Weaning',
     'kit_identification' => 'Identify/tag kits',
+    'retirement_review' => 'Retirement review',
     _ => _sentenceCase(type),
   };
 }

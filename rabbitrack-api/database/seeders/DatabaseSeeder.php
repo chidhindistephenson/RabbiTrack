@@ -43,6 +43,11 @@ class DatabaseSeeder extends Seeder
                     'nest_box_lead_days' => 3,
                     'weaning_days' => 35,
                     'kit_identification_days_after_weaning' => 7,
+                    'sale_ready_min_age_days' => 70,
+                    'sale_ready_min_weight_kg' => 2.0,
+                    'retirement_review_litter_threshold' => 0,
+                    'breeding_min_doe_age_days' => 0,
+                    'breeding_min_buck_age_days' => 0,
                 ],
             ],
         );

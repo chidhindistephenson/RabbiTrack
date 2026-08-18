@@ -111,6 +111,78 @@ class KindlingWorkflowTest extends TestCase
             ->assertJsonPath('data.buck_id', null);
     }
 
+    public function test_kindling_creates_retirement_review_when_litter_threshold_is_reached(): void
+    {
+        [$user, $farm, $mating, $doe] = $this->matingContext();
+        $farm->update([
+            'settings' => array_merge($farm->settings ?? [], [
+                'retirement_review_litter_threshold' => 2,
+            ]),
+        ]);
+        Litter::factory()->create([
+            'farm_id' => $farm->id,
+            'doe_id' => $doe->id,
+            'status' => 'weaned',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/kindlings", [
+            'mating_id' => $mating->id,
+            'kindled_on' => '2026-08-03',
+            'kits_born_alive' => 6,
+            'birth_weight_value' => 0.600,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('tasks', [
+            'farm_id' => $farm->id,
+            'type' => 'retirement_review',
+            'status' => 'open',
+            'rabbit_id' => $doe->id,
+            'priority' => 'high',
+        ]);
+
+        $this->assertDatabaseHas('rabbits', [
+            'id' => $doe->id,
+            'status' => 'nursing',
+        ]);
+    }
+
+    public function test_kindling_does_not_duplicate_open_retirement_review(): void
+    {
+        [$user, $farm, $mating, $doe] = $this->matingContext();
+        $farm->update([
+            'settings' => array_merge($farm->settings ?? [], [
+                'retirement_review_litter_threshold' => 1,
+            ]),
+        ]);
+        Task::factory()->create([
+            'farm_id' => $farm->id,
+            'type' => 'retirement_review',
+            'status' => 'open',
+            'rabbit_id' => $doe->id,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/kindlings", [
+            'mating_id' => $mating->id,
+            'kindled_on' => '2026-08-03',
+            'kits_born_alive' => 6,
+            'birth_weight_value' => 0.600,
+        ])->assertCreated();
+
+        $this->assertSame(
+            1,
+            Task::query()
+                ->where('farm_id', $farm->id)
+                ->where('type', 'retirement_review')
+                ->where('rabbit_id', $doe->id)
+                ->where('status', 'open')
+                ->count(),
+        );
+    }
+
     public function test_member_can_view_litter_detail(): void
     {
         [$user, $farm,, $doe] = $this->matingContext();
@@ -165,6 +237,7 @@ class KindlingWorkflowTest extends TestCase
                 'pregnancy_check_end_days' => 14,
                 'nest_box_lead_days' => 3,
                 'weaning_days' => 35,
+                'retirement_review_litter_threshold' => 0,
             ],
         ]);
 

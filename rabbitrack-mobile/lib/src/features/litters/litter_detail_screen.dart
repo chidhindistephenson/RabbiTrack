@@ -33,11 +33,35 @@ class LitterDetailScreen extends ConsumerWidget {
             children: [
               _HeroCard(litter: item),
               const SizedBox(height: 14),
+              if (!['closed', 'archived'].contains(item.status)) ...[
+                _CheckStrip(litterId: litterId),
+                const SizedBox(height: 14),
+              ],
+              if (item.currentLiveCount > 0 &&
+                  [
+                    'newborn',
+                    'nursing',
+                    'partially_weaned',
+                  ].contains(item.status)) ...[
+                _FosterStrip(litterId: litterId),
+                const SizedBox(height: 14),
+              ],
               if (item.status != 'weaned') ...[
                 _ActionStrip(litterId: litterId),
                 const SizedBox(height: 14),
               ],
+              if (item.status == 'weaned' && item.unconvertedKitsCount > 0) ...[
+                _IdentifyStrip(litterId: litterId),
+                const SizedBox(height: 14),
+              ],
               _KindlingSection(litter: item),
+              const SizedBox(height: 14),
+              _ChecksSection(checks: item.checks),
+              const SizedBox(height: 14),
+              _FostersSection(
+                fostersOut: item.fostersOut,
+                fostersIn: item.fostersIn,
+              ),
               const SizedBox(height: 14),
               _WeaningsSection(weanings: item.weanings),
               const SizedBox(height: 14),
@@ -175,6 +199,21 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
+class _CheckStrip extends StatelessWidget {
+  const _CheckStrip({required this.litterId});
+
+  final String litterId;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () => context.push('/litters/$litterId/checks/new'),
+      icon: const Icon(Icons.fact_check_outlined),
+      label: const Text('Record check'),
+    );
+  }
+}
+
 class _ActionStrip extends StatelessWidget {
   const _ActionStrip({required this.litterId});
 
@@ -186,6 +225,36 @@ class _ActionStrip extends StatelessWidget {
       onPressed: () => context.push('/litters/$litterId/weaning'),
       icon: const Icon(Icons.check_circle_outline),
       label: const Text('Record weaning'),
+    );
+  }
+}
+
+class _FosterStrip extends StatelessWidget {
+  const _FosterStrip({required this.litterId});
+
+  final String litterId;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () => context.push('/litters/$litterId/fosters/new'),
+      icon: const Icon(Icons.swap_horiz),
+      label: const Text('Record foster'),
+    );
+  }
+}
+
+class _IdentifyStrip extends StatelessWidget {
+  const _IdentifyStrip({required this.litterId});
+
+  final String litterId;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: () => context.push('/litters/$litterId/convert'),
+      icon: const Icon(Icons.sell_outlined),
+      label: const Text('Identify kits'),
     );
   }
 }
@@ -225,6 +294,48 @@ class _KindlingSection extends StatelessWidget {
   }
 }
 
+class _ChecksSection extends StatelessWidget {
+  const _ChecksSection({required this.checks});
+
+  final List<LitterCheckSummary> checks;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      title: 'Litter checks',
+      subtitle: checks.isEmpty
+          ? 'No checks recorded yet'
+          : 'Recent count and nest observations',
+      child: checks.isEmpty
+          ? const _EmptyInline(
+              icon: Icons.fact_check_outlined,
+              text: 'No litter checks recorded',
+            )
+          : Column(
+              children: [
+                for (final check in checks.take(5)) ...[
+                  _RecordCard(
+                    icon: Icons.fact_check,
+                    title:
+                        '${check.liveCount} live, ${check.deadCount} dead, ${check.weakCount} weak',
+                    subtitle: [
+                      if (check.suspectedCause != null)
+                        'Cause: ${check.suspectedCause}',
+                      if (check.nestObservation != null)
+                        'Nest: ${check.nestObservation}',
+                      if (check.correctiveAction != null)
+                        'Action: ${check.correctiveAction}',
+                    ].join(' | '),
+                    meta: check.checkedOn ?? 'Check',
+                  ),
+                  if (check != checks.take(5).last) const SizedBox(height: 10),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
 class _WeaningsSection extends StatelessWidget {
   const _WeaningsSection({required this.weanings});
 
@@ -257,6 +368,67 @@ class _WeaningsSection extends StatelessWidget {
               ],
             ),
     );
+  }
+}
+
+class _FostersSection extends StatelessWidget {
+  const _FostersSection({required this.fostersOut, required this.fostersIn});
+
+  final List<LitterFosterSummary> fostersOut;
+  final List<LitterFosterSummary> fostersIn;
+
+  @override
+  Widget build(BuildContext context) {
+    final records = [
+      for (final foster in fostersOut)
+        _FosterRecord(foster: foster, isOut: true),
+      for (final foster in fostersIn)
+        _FosterRecord(foster: foster, isOut: false),
+    ];
+
+    return _Panel(
+      title: 'Fostering',
+      subtitle: records.isEmpty
+          ? 'No kits moved between litters'
+          : 'Kits fostered in or out of this litter',
+      child: records.isEmpty
+          ? const _EmptyInline(
+              icon: Icons.swap_horiz,
+              text: 'No fostering records',
+            )
+          : Column(
+              children: [
+                for (final record in records.take(5)) ...[
+                  _RecordCard(
+                    icon: record.isOut ? Icons.north_east : Icons.south_west,
+                    title:
+                        '${record.foster.kitCount} kits fostered ${record.isOut ? 'out' : 'in'}',
+                    subtitle: record.subtitle,
+                    meta: record.foster.fosteredOn ?? 'Foster',
+                  ),
+                  if (record != records.take(5).last)
+                    const SizedBox(height: 10),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _FosterRecord {
+  const _FosterRecord({required this.foster, required this.isOut});
+
+  final LitterFosterSummary foster;
+  final bool isOut;
+
+  String get subtitle {
+    final counterpart = isOut
+        ? foster.toLitterIdentifier ?? 'receiving litter'
+        : foster.fromLitterIdentifier ?? 'source litter';
+    final direction = isOut ? 'To $counterpart' : 'From $counterpart';
+    final reason = foster.reason == null ? null : 'Reason: ${foster.reason}';
+
+    return [direction, ?reason].join(' | ');
   }
 }
 

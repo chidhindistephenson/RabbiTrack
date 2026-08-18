@@ -32,6 +32,7 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
   String? _buckId;
   DateTime _matedAt = DateTime.now();
   String _outcome = 'observed';
+  bool _confirmRelationshipRisk = false;
   bool _isSaving = false;
 
   @override
@@ -64,6 +65,7 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
             outcome: _outcome,
             behaviorObserved: _optionalText(_behaviorController),
             notes: _optionalText(_notesController),
+            confirmRelationshipRisk: _confirmRelationshipRisk,
           );
 
       ref.invalidate(matingListProvider);
@@ -125,6 +127,7 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
   @override
   Widget build(BuildContext context) {
     final rabbits = ref.watch(rabbitListProvider);
+    final farm = ref.watch(authControllerProvider).valueOrNull?.selectedFarm;
 
     return Scaffold(
       appBar: AppBar(
@@ -143,14 +146,22 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
               .where(
                 (rabbit) =>
                     rabbit.sex == 'female' &&
-                    canSelectDoeForMating(rabbit.status),
+                    canSelectDoeForMating(rabbit.status) &&
+                    _meetsBreedingAge(
+                      rabbit,
+                      farm?.breedingMinDoeAgeDays ?? 0,
+                    ),
               )
               .toList();
           final bucks = items
               .where(
                 (rabbit) =>
                     rabbit.sex == 'male' &&
-                    canSelectBuckForMating(rabbit.status),
+                    canSelectBuckForMating(rabbit.status) &&
+                    _meetsBreedingAge(
+                      rabbit,
+                      farm?.breedingMinBuckAgeDays ?? 0,
+                    ),
               )
               .toList();
           final initialRabbit = widget.initialRabbitId == null
@@ -161,11 +172,19 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
           final locksDoe =
               initialRabbit != null &&
               initialRabbit.sex == 'female' &&
-              canSelectDoeForMating(initialRabbit.status);
+              canSelectDoeForMating(initialRabbit.status) &&
+              _meetsBreedingAge(
+                initialRabbit,
+                farm?.breedingMinDoeAgeDays ?? 0,
+              );
           final locksBuck =
               initialRabbit != null &&
               initialRabbit.sex == 'male' &&
-              canSelectBuckForMating(initialRabbit.status);
+              canSelectBuckForMating(initialRabbit.status) &&
+              _meetsBreedingAge(
+                initialRabbit,
+                farm?.breedingMinBuckAgeDays ?? 0,
+              );
 
           if (locksDoe && _doeId == null) {
             _doeId = initialRabbit.id;
@@ -180,11 +199,16 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
               icon: Icons.favorite_border,
               title: 'Available breeding pair needed',
               message:
-                  'A doe must be available for breeding before recording a new mating.',
+                  'A doe and buck must be available and meet farm breeding rules before recording a new mating.',
               actionLabel: 'Add rabbit',
               actionIcon: Icons.add,
               onAction: () => context.push('/rabbits/new'),
             );
+          }
+
+          final relationshipWarning = _relationshipWarning(items);
+          if (relationshipWarning == null && _confirmRelationshipRisk) {
+            _confirmRelationshipRisk = false;
           }
 
           return Form(
@@ -220,6 +244,16 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
                   validator: (value) => value == null ? 'Select a buck' : null,
                 ),
                 const SizedBox(height: 14),
+                if (relationshipWarning != null) ...[
+                  _RelationshipWarning(
+                    message: relationshipWarning,
+                    confirmed: _confirmRelationshipRisk,
+                    onChanged: (value) => setState(
+                      () => _confirmRelationshipRisk = value ?? false,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 _DateField(
                   label: 'Mating date',
                   value: _dateValue(_matedAt),
@@ -259,7 +293,12 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
                 ),
                 const SizedBox(height: 18),
                 FilledButton(
-                  onPressed: _isSaving || _doeId == null || _buckId == null
+                  onPressed:
+                      _isSaving ||
+                          _doeId == null ||
+                          _buckId == null ||
+                          (relationshipWarning != null &&
+                              !_confirmRelationshipRisk)
                       ? null
                       : _save,
                   child: _isSaving
@@ -291,6 +330,127 @@ class _MatingCreateScreenState extends ConsumerState<MatingCreateScreen> {
       child: Text(
         '${rabbit.identifier}${rabbit.name == null ? '' : ' - ${rabbit.name}'}',
         overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  String? _relationshipWarning(List<RabbitSummary> rabbits) {
+    if (_doeId == null || _buckId == null) {
+      return null;
+    }
+
+    final doe = rabbits.where((rabbit) => rabbit.id == _doeId).firstOrNull;
+    final buck = rabbits.where((rabbit) => rabbit.id == _buckId).firstOrNull;
+    if (doe == null || buck == null) {
+      return null;
+    }
+
+    if (doe.motherId == buck.id ||
+        doe.fatherId == buck.id ||
+        buck.motherId == doe.id ||
+        buck.fatherId == doe.id) {
+      return 'These rabbits have a direct parent-child relationship in their records.';
+    }
+
+    final sharedMother = doe.motherId != null && doe.motherId == buck.motherId;
+    final sharedFather = doe.fatherId != null && doe.fatherId == buck.fatherId;
+
+    if (sharedMother && sharedFather) {
+      return 'These rabbits share both recorded parents.';
+    }
+    if (sharedMother) {
+      return 'These rabbits share the same recorded mother.';
+    }
+    if (sharedFather) {
+      return 'These rabbits share the same recorded father.';
+    }
+
+    return null;
+  }
+
+  bool _meetsBreedingAge(RabbitSummary rabbit, int minAgeDays) {
+    if (minAgeDays <= 0) {
+      return true;
+    }
+
+    final birthDate = DateTime.tryParse(rabbit.dateOfBirth ?? '');
+    if (birthDate == null) {
+      return false;
+    }
+
+    final birthDateOnly = DateTime(
+      birthDate.year,
+      birthDate.month,
+      birthDate.day,
+    );
+    final matedDateOnly = DateTime(
+      _matedAt.year,
+      _matedAt.month,
+      _matedAt.day,
+    );
+
+    return matedDateOnly.difference(birthDateOnly).inDays >= minAgeDays;
+  }
+}
+
+class _RelationshipWarning extends StatelessWidget {
+  const _RelationshipWarning({
+    required this.message,
+    required this.confirmed,
+    required this.onChanged,
+  });
+
+  final String message;
+  final bool confirmed;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: RabbiTrackColors.warmTan.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: RabbiTrackColors.warmTan),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: RabbiTrackColors.forestGreen,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: RabbiTrackColors.forestGreen,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.transparent,
+            child: CheckboxListTile(
+              value: confirmed,
+              onChanged: onChanged,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text(
+                'Confirm relationship risk',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

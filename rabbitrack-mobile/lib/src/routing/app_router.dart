@@ -23,7 +23,10 @@ import '../features/health/health_list_screen.dart';
 import '../features/health/treatment_create_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/litters/kindling_create_screen.dart';
+import '../features/litters/litter_check_screen.dart';
+import '../features/litters/litter_conversion_screen.dart';
 import '../features/litters/litter_detail_screen.dart';
+import '../features/litters/litter_foster_screen.dart';
 import '../features/litters/litter_list_screen.dart';
 import '../features/litters/weaning_create_screen.dart';
 import '../features/locations/location_create_screen.dart';
@@ -37,7 +40,13 @@ import '../features/rabbits/rabbit_edit_screen.dart';
 import '../features/rabbits/rabbit_list_screen.dart';
 import '../features/rabbits/rabbit_move_screen.dart';
 import '../features/rabbits/rabbit_status_screen.dart';
+import '../features/reports/breeding_calendar_screen.dart';
+import '../features/reports/buck_performance_report_screen.dart';
+import '../features/reports/doe_performance_report_screen.dart';
 import '../features/reports/finance_report_screen.dart';
+import '../features/reports/health_report_screen.dart';
+import '../features/reports/litter_performance_report_screen.dart';
+import '../features/reports/population_report_screen.dart';
 import '../features/sales/sale_create_screen.dart';
 import '../features/sales/sale_list_screen.dart';
 import '../features/team/team_add_screen.dart';
@@ -244,6 +253,30 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const FinanceReportScreen(),
           ),
           GoRoute(
+            path: '/reports/breeding-calendar',
+            builder: (context, state) => const BreedingCalendarScreen(),
+          ),
+          GoRoute(
+            path: '/reports/population',
+            builder: (context, state) => const PopulationReportScreen(),
+          ),
+          GoRoute(
+            path: '/reports/health',
+            builder: (context, state) => const HealthReportScreen(),
+          ),
+          GoRoute(
+            path: '/reports/litters/performance',
+            builder: (context, state) => const LitterPerformanceReportScreen(),
+          ),
+          GoRoute(
+            path: '/reports/does/performance',
+            builder: (context, state) => const DoePerformanceReportScreen(),
+          ),
+          GoRoute(
+            path: '/reports/bucks/performance',
+            builder: (context, state) => const BuckPerformanceReportScreen(),
+          ),
+          GoRoute(
             path: '/team',
             builder: (context, state) => const TeamListScreen(),
           ),
@@ -293,6 +326,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/litters/:litterId/weaning',
             builder: (context, state) => WeaningCreateScreen(
+              litterId: state.pathParameters['litterId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/litters/:litterId/checks/new',
+            builder: (context, state) =>
+                LitterCheckScreen(litterId: state.pathParameters['litterId']!),
+          ),
+          GoRoute(
+            path: '/litters/:litterId/fosters/new',
+            builder: (context, state) =>
+                LitterFosterScreen(litterId: state.pathParameters['litterId']!),
+          ),
+          GoRoute(
+            path: '/litters/:litterId/convert',
+            builder: (context, state) => LitterConversionScreen(
               litterId: state.pathParameters['litterId']!,
             ),
           ),

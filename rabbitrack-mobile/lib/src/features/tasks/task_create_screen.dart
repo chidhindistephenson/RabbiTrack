@@ -95,6 +95,7 @@ class _TaskCreateScreenState extends ConsumerState<TaskCreateScreen> {
       ref.invalidate(taskListProvider);
       ref.invalidate(taskSummaryProvider);
       ref.invalidate(farmSummaryProvider);
+      await syncTaskRemindersForFarm(ref, farm.id);
 
       if (mounted) {
         showSuccessSnackBar(context, 'Task created.');

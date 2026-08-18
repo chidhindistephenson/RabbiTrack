@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rabbitrack_mobile/src/features/activity/activity_controller.dart';
-import 'package:rabbitrack_mobile/src/features/activity/activity_models.dart';
 import 'package:rabbitrack_mobile/src/features/auth/auth_models.dart';
 import 'package:rabbitrack_mobile/src/features/home/farm_summary_controller.dart';
 import 'package:rabbitrack_mobile/src/features/home/farm_summary_models.dart';
@@ -18,7 +16,6 @@ void main() {
           farmSummaryProvider.overrideWith((ref) async => _summary),
           taskSummaryProvider.overrideWith((ref) async => _taskSummary),
           taskListProvider.overrideWith((ref) async => _tasks),
-          activityListProvider.overrideWith((ref) async => _activity),
         ],
         child: const MaterialApp(home: HomeScreen(farm: _farm)),
       ),
@@ -31,6 +28,17 @@ void main() {
     expect(find.text('4 open tasks'), findsNothing);
     expect(find.text('1 overdue, 2 due today.'), findsNothing);
     await tester.scrollUntilVisible(
+      find.text('Herd status'),
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Does'), findsOneWidget);
+    expect(find.text('Bucks'), findsOneWidget);
+    expect(find.text('Live kits'), findsOneWidget);
+    expect(find.text('Expected kindlings'), findsOneWidget);
+    await tester.scrollUntilVisible(
       find.text('Farm money'),
       280,
       scrollable: find.byType(Scrollable).first,
@@ -38,14 +46,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Farm money'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Recent activity'),
-      280,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Recent activity'), findsOneWidget);
+    expect(find.text('Recent activity'), findsNothing);
     expect(find.text('Care calendar'), findsNothing);
     expect(find.text('At a glance'), findsNothing);
   });
@@ -59,7 +60,6 @@ void main() {
           farmSummaryProvider.overrideWith((ref) => Future.error('offline')),
           taskSummaryProvider.overrideWith((ref) => Future.error('offline')),
           taskListProvider.overrideWith((ref) => Future.error('offline')),
-          activityListProvider.overrideWith((ref) => Future.error('offline')),
         ],
         child: const MaterialApp(home: HomeScreen(farm: _farm)),
       ),
@@ -92,7 +92,6 @@ void main() {
             farmSummaryProvider.overrideWith((ref) async => _oddSummary),
             taskSummaryProvider.overrideWith((ref) async => _taskSummary),
             taskListProvider.overrideWith((ref) async => _tasks),
-            activityListProvider.overrideWith((ref) async => _activity),
           ],
           child: const MaterialApp(home: HomeScreen(farm: _farm)),
         ),
@@ -117,12 +116,17 @@ const _farm = FarmSummary(
 
 const _summary = FarmSummaryCounts(
   activeRabbits: 12,
+  does: 7,
+  bucks: 5,
+  liveKits: 18,
   readyForSale: 3,
   healthAlerts: 1,
   quarantined: 0,
   pregnantDoes: 1,
   nursingDoes: 1,
   openTasks: 4,
+  overdueTasks: 1,
+  expectedKindlings: 2,
   totalSales: 2,
   salesRevenue: '40.00',
   totalExpenses: '12.50',
@@ -144,23 +148,19 @@ const _tasks = [
   ),
 ];
 
-const _activity = [
-  ActivityLogSummary(
-    id: 'activity-1',
-    action: 'rabbit.created',
-    description: 'Created DOE-0001.',
-    createdAt: '2026-08-03 10:00:00',
-  ),
-];
-
 const _oddSummary = FarmSummaryCounts(
   activeRabbits: 0,
+  does: 0,
+  bucks: 0,
+  liveKits: 0,
   readyForSale: 0,
   healthAlerts: 0,
   quarantined: 0,
   pregnantDoes: 0,
   nursingDoes: 0,
   openTasks: 0,
+  overdueTasks: 0,
+  expectedKindlings: 0,
   totalSales: 0,
   salesRevenue: 'NaN',
   totalExpenses: 'Infinity',

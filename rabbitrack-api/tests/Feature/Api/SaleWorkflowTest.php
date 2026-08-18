@@ -6,6 +6,7 @@ use App\Models\Farm;
 use App\Models\FarmMembership;
 use App\Models\Rabbit;
 use App\Models\Sale;
+use App\Models\Treatment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -164,6 +165,91 @@ class SaleWorkflowTest extends TestCase
         $this->postJson("/api/v1/farms/{$farm->id}/sales", [
             'rabbit_id' => $rabbit->id,
             'sold_on' => '2026-07-30',
+            'sale_price' => 25.50,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('rabbit_id');
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_member_cannot_sell_rabbit_during_withdrawal_period(): void
+    {
+        $user = User::factory()->create();
+        $farm = Farm::factory()->create();
+        FarmMembership::factory()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $user->id,
+            'role' => 'manager',
+        ]);
+        $rabbit = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'status' => 'ready_for_sale',
+        ]);
+        Treatment::factory()->create([
+            'farm_id' => $farm->id,
+            'rabbit_id' => $rabbit->id,
+            'withdrawal_days' => 14,
+            'withdrawal_ends_on' => '2026-08-13',
+            'status' => 'completed',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/sales", [
+            'rabbit_id' => $rabbit->id,
+            'sold_on' => '2026-08-10',
+            'sale_price' => 25.50,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('rabbit_id');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('rabbits', [
+            'id' => $rabbit->id,
+            'status' => 'ready_for_sale',
+        ]);
+    }
+
+    public function test_member_cannot_sell_rabbit_before_configured_age_or_weight(): void
+    {
+        $user = User::factory()->create();
+        $farm = Farm::factory()->create([
+            'settings' => [
+                'sale_ready_min_age_days' => 70,
+                'sale_ready_min_weight_kg' => 2.0,
+            ],
+        ]);
+        FarmMembership::factory()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $user->id,
+            'role' => 'manager',
+        ]);
+        $rabbit = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'date_of_birth' => '2026-07-01',
+            'weight_value' => 1.750,
+            'status' => 'ready_for_sale',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/sales", [
+            'rabbit_id' => $rabbit->id,
+            'sold_on' => '2026-08-17',
+            'sale_price' => 25.50,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('rabbit_id');
+
+        $rabbit->update([
+            'date_of_birth' => '2026-05-01',
+            'weight_value' => 1.750,
+        ]);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/sales", [
+            'rabbit_id' => $rabbit->id,
+            'sold_on' => '2026-08-17',
             'sale_price' => 25.50,
         ])
             ->assertUnprocessable()

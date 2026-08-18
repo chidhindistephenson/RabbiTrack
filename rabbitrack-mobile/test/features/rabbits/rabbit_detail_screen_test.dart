@@ -4,6 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_controller.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_detail_screen.dart';
 import 'package:rabbitrack_mobile/src/features/rabbits/rabbit_models.dart';
+import 'package:rabbitrack_mobile/src/features/reports/buck_performance_report_controller.dart';
+import 'package:rabbitrack_mobile/src/features/reports/buck_performance_report_models.dart';
+import 'package:rabbitrack_mobile/src/features/reports/doe_performance_report_controller.dart';
+import 'package:rabbitrack_mobile/src/features/reports/doe_performance_report_models.dart';
 import 'package:rabbitrack_mobile/src/features/weights/weight_controller.dart';
 
 void main() {
@@ -39,6 +43,9 @@ void main() {
         overrides: [
           rabbitDetailProvider('rabbit-1').overrideWith((ref) async => _rabbit),
           rabbitWeightListProvider('rabbit-1').overrideWith((ref) async => []),
+          buckPerformanceReportProvider.overrideWith(
+            (ref) async => _buckReport,
+          ),
         ],
         child: const MaterialApp(
           home: RabbitDetailScreen(rabbitId: 'rabbit-1'),
@@ -53,6 +60,9 @@ void main() {
     expect(find.byTooltip('Edit profile'), findsAtLeastNWidgets(1));
     expect(find.text('Basic info'), findsOneWidget);
     expect(find.text('Records'), findsOneWidget);
+    expect(find.text('Buck performance'), findsOneWidget);
+    expect(find.text('75.0%'), findsOneWidget);
+    expect(find.text('Conception'), findsOneWidget);
     expect(find.text('Status'), findsAtLeastNWidgets(1));
     expect(find.text('Move'), findsOneWidget);
     expect(find.text('Sale record'), findsOneWidget);
@@ -79,6 +89,12 @@ void main() {
             'rabbit-1',
           ).overrideWith((ref) async => _unknownSexRabbit),
           rabbitWeightListProvider('rabbit-1').overrideWith((ref) async => []),
+          doePerformanceReportProvider.overrideWith(
+            (ref) async => _emptyDoeReport,
+          ),
+          buckPerformanceReportProvider.overrideWith(
+            (ref) async => _emptyBuckReport,
+          ),
         ],
         child: const MaterialApp(
           home: RabbitDetailScreen(rabbitId: 'rabbit-1'),
@@ -89,6 +105,11 @@ void main() {
 
     expect(find.text('?'), findsOneWidget);
     expect(find.text('Unknown'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('No notes recorded'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('No notes recorded'), findsOneWidget);
   });
 
@@ -105,6 +126,9 @@ void main() {
             'rabbit-1',
           ).overrideWith((ref) async => _soldRabbit),
           rabbitWeightListProvider('rabbit-1').overrideWith((ref) async => []),
+          buckPerformanceReportProvider.overrideWith(
+            (ref) async => _buckReport,
+          ),
         ],
         child: const MaterialApp(
           home: RabbitDetailScreen(rabbitId: 'rabbit-1'),
@@ -149,4 +173,57 @@ const _soldRabbit = RabbitDetail(
   status: 'sold',
   movements: [],
   breed: 'New Zealand White',
+);
+
+const _buckReport = BuckPerformanceReport(
+  buckCount: 1,
+  totalMatings: 4,
+  confirmedPregnancies: 3,
+  conceptionRate: 75,
+  litters: 2,
+  kitsBornAlive: 14,
+  kitsWeaned: 12,
+  averageLitterSize: 7,
+  weaningRate: 85.7,
+  bucks: [
+    BuckPerformanceRow(
+      id: 'rabbit-1',
+      identifier: 'BUCK-0003',
+      status: 'ready_for_sale',
+      matings: 4,
+      confirmedPregnancies: 3,
+      conceptionRate: 75,
+      litters: 2,
+      kitsBornAlive: 14,
+      kitsWeaned: 12,
+      averageLitterSize: 7,
+      weaningRate: 85.7,
+    ),
+  ],
+);
+
+const _emptyDoeReport = DoePerformanceReport(
+  doeCount: 0,
+  totalMatings: 0,
+  confirmedPregnancies: 0,
+  kindlings: 0,
+  completedLitters: 0,
+  kitsBornAlive: 0,
+  kitsWeaned: 0,
+  averageLitterSize: 0,
+  survivalRate: 0,
+  does: [],
+);
+
+const _emptyBuckReport = BuckPerformanceReport(
+  buckCount: 0,
+  totalMatings: 0,
+  confirmedPregnancies: 0,
+  conceptionRate: 0,
+  litters: 0,
+  kitsBornAlive: 0,
+  kitsWeaned: 0,
+  averageLitterSize: 0,
+  weaningRate: 0,
+  bucks: [],
 );

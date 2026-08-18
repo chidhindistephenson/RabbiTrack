@@ -73,6 +73,21 @@ class Litter extends Model
         return $this->hasMany(Weaning::class);
     }
 
+    public function checks(): HasMany
+    {
+        return $this->hasMany(LitterCheck::class);
+    }
+
+    public function fostersOut(): HasMany
+    {
+        return $this->hasMany(LitterFoster::class, 'from_litter_id');
+    }
+
+    public function fostersIn(): HasMany
+    {
+        return $this->hasMany(LitterFoster::class, 'to_litter_id');
+    }
+
     public function weightRecords(): HasMany
     {
         return $this->hasMany(WeightRecord::class);

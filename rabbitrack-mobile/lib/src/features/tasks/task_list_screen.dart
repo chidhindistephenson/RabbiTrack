@@ -218,7 +218,7 @@ class _TaskTile extends ConsumerWidget {
         .read(taskRepositoryProvider)
         .complete(farmId: farm.id, taskId: task.id);
 
-    _refreshTasks(ref);
+    await _refreshTasks(ref, farm.id);
   }
 
   Future<void> _cancel(WidgetRef ref) async {
@@ -231,7 +231,7 @@ class _TaskTile extends ConsumerWidget {
         .read(taskRepositoryProvider)
         .cancel(farmId: farm.id, taskId: task.id);
 
-    _refreshTasks(ref);
+    await _refreshTasks(ref, farm.id);
   }
 
   Future<void> _reschedule(BuildContext context, WidgetRef ref) async {
@@ -259,13 +259,14 @@ class _TaskTile extends ConsumerWidget {
           dueOn: _dateString(picked),
         );
 
-    _refreshTasks(ref);
+    await _refreshTasks(ref, farm.id);
   }
 
-  void _refreshTasks(WidgetRef ref) {
+  Future<void> _refreshTasks(WidgetRef ref, String farmId) async {
     ref.invalidate(taskListProvider);
     ref.invalidate(taskSummaryProvider);
     ref.invalidate(farmSummaryProvider);
+    await syncTaskRemindersForFarm(ref, farmId);
   }
 
   String _dateString(DateTime date) {

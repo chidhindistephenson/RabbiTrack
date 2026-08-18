@@ -114,4 +114,84 @@ void main() {
       'Farm Two',
     );
   });
+
+  test('AuthSession serializes enough data for offline restore', () {
+    const session = AuthSession(
+      token: 'token-123',
+      userName: 'RabbiTrack Worker',
+      email: 'worker@rabbitrack.local',
+      username: 'worker',
+      phone: null,
+      farms: [
+        FarmSummary(
+          id: 'farm-1',
+          name: 'Demo Farm',
+          code: 'DEMO',
+          role: 'worker',
+          timezone: 'Africa/Johannesburg',
+          currency: 'USD',
+          saleReadyMinAgeDays: 70,
+          saleReadyMinWeightKg: 2.4,
+          retirementReviewLitterThreshold: 6,
+          breedingMinDoeAgeDays: 150,
+          breedingMinBuckAgeDays: 120,
+        ),
+      ],
+      selectedFarm: FarmSummary(
+        id: 'farm-1',
+        name: 'Demo Farm',
+        code: 'DEMO',
+        role: 'worker',
+        timezone: 'Africa/Johannesburg',
+        currency: 'USD',
+        saleReadyMinAgeDays: 70,
+        saleReadyMinWeightKg: 2.4,
+        retirementReviewLitterThreshold: 6,
+        breedingMinDoeAgeDays: 150,
+        breedingMinBuckAgeDays: 120,
+      ),
+    );
+
+    final restored = AuthSession.fromJson(session.toJson());
+
+    expect(restored.token, 'token-123');
+    expect(restored.email, 'worker@rabbitrack.local');
+    expect(restored.selectedFarm?.id, 'farm-1');
+    expect(restored.selectedFarm?.role, 'worker');
+    expect(restored.selectedFarm?.saleReadyMinAgeDays, 70);
+    expect(restored.selectedFarm?.saleReadyMinWeightKg, 2.4);
+    expect(restored.selectedFarm?.retirementReviewLitterThreshold, 6);
+    expect(restored.selectedFarm?.breedingMinDoeAgeDays, 150);
+    expect(restored.selectedFarm?.breedingMinBuckAgeDays, 120);
+  });
+
+  test('offline demo login accepts seeded owner credentials', () {
+    final session = offlineDemoSessionForCredentials(
+      login: 'owner@rabbitrack.local',
+      password: 'secret-password',
+    );
+
+    expect(session, isNotNull);
+    expect(session!.email, 'owner@rabbitrack.local');
+    expect(session.selectedFarm?.name, 'RabbiTrack Demo Farm');
+    expect(session.selectedFarm?.role, 'owner');
+    expect(session.selectedFarm?.currency, 'USD');
+  });
+
+  test('offline demo login rejects unknown or wrong credentials', () {
+    expect(
+      offlineDemoSessionForCredentials(
+        login: 'owner@rabbitrack.local',
+        password: 'wrong-password',
+      ),
+      isNull,
+    );
+    expect(
+      offlineDemoSessionForCredentials(
+        login: 'stranger@rabbitrack.local',
+        password: 'secret-password',
+      ),
+      isNull,
+    );
+  });
 }

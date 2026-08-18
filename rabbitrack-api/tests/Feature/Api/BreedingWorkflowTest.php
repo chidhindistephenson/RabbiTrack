@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Farm;
 use App\Models\FarmMembership;
+use App\Models\HealthEvent;
 use App\Models\Mating;
 use App\Models\PregnancyCheck;
 use App\Models\Rabbit;
@@ -149,6 +150,137 @@ class BreedingWorkflowTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('doe_id');
+    }
+
+    public function test_member_cannot_record_mating_with_unavailable_or_sick_rabbit(): void
+    {
+        [$user, $farm] = $this->memberContext();
+        $doe = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'female',
+            'status' => 'under_treatment',
+        ]);
+        $buck = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'male',
+            'status' => 'available_for_breeding',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/matings", [
+            'doe_id' => $doe->id,
+            'buck_id' => $buck->id,
+            'mated_at' => '2026-08-05 09:30:00',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('doe_id');
+
+        $doe->update(['status' => 'available_for_breeding']);
+        HealthEvent::factory()->create([
+            'farm_id' => $farm->id,
+            'rabbit_id' => $buck->id,
+            'recorded_by_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/matings", [
+            'doe_id' => $doe->id,
+            'buck_id' => $buck->id,
+            'mated_at' => '2026-08-05 09:30:00',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('buck_id');
+    }
+
+    public function test_member_cannot_record_mating_before_configured_breeding_age(): void
+    {
+        [$user, $farm] = $this->memberContext();
+        $farm->update([
+            'settings' => array_merge($farm->settings ?? [], [
+                'breeding_min_doe_age_days' => 150,
+                'breeding_min_buck_age_days' => 120,
+            ]),
+        ]);
+
+        $doe = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'female',
+            'status' => 'available_for_breeding',
+            'date_of_birth' => '2026-06-01',
+        ]);
+        $buck = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'male',
+            'status' => 'available_for_breeding',
+            'date_of_birth' => '2025-12-01',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/matings", [
+            'doe_id' => $doe->id,
+            'buck_id' => $buck->id,
+            'mated_at' => '2026-08-17 09:30:00',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('doe_id');
+
+        $doe->update(['date_of_birth' => '2025-12-01']);
+        $buck->update(['date_of_birth' => '2026-06-01']);
+
+        $this->postJson("/api/v1/farms/{$farm->id}/matings", [
+            'doe_id' => $doe->id,
+            'buck_id' => $buck->id,
+            'mated_at' => '2026-08-17 09:30:00',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('buck_id');
+    }
+
+    public function test_member_must_confirm_related_mating_risk(): void
+    {
+        [$user, $farm] = $this->memberContext();
+        $mother = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'female',
+        ]);
+        $father = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'male',
+        ]);
+        $doe = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'female',
+            'status' => 'available_for_breeding',
+            'mother_id' => $mother->id,
+            'father_id' => $father->id,
+        ]);
+        $buck = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'sex' => 'male',
+            'status' => 'available_for_breeding',
+            'mother_id' => $mother->id,
+            'father_id' => $father->id,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $payload = [
+            'doe_id' => $doe->id,
+            'buck_id' => $buck->id,
+            'mated_at' => '2026-07-03 09:30:00',
+        ];
+
+        $this->postJson("/api/v1/farms/{$farm->id}/matings", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('confirm_relationship_risk');
+
+        $this->postJson("/api/v1/farms/{$farm->id}/matings", $payload + [
+            'confirm_relationship_risk' => true,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'awaiting_pregnancy_check');
     }
 
     public function test_member_can_view_mating_detail(): void

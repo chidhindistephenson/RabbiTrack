@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../theme/rabbitrack_colors.dart';
 import '../../shared/money_format.dart';
 import '../../shared/rabbit_icon.dart';
-import '../activity/activity_controller.dart';
-import '../activity/activity_models.dart';
 import '../auth/auth_models.dart';
 import '../tasks/task_controller.dart';
 import '../tasks/task_models.dart';
@@ -24,7 +22,6 @@ class HomeScreen extends ConsumerWidget {
     final farmSummary = ref.watch(farmSummaryProvider);
     final taskSummary = ref.watch(taskSummaryProvider);
     final taskList = ref.watch(taskListProvider);
-    final activity = ref.watch(activityListProvider);
 
     return Scaffold(
       backgroundColor: RabbiTrackColors.cream,
@@ -37,7 +34,6 @@ class HomeScreen extends ConsumerWidget {
                 ref.refresh(farmSummaryProvider.future),
                 ref.refresh(taskSummaryProvider.future),
                 ref.refresh(taskListProvider.future),
-                ref.refresh(activityListProvider.future),
               ], eagerError: false);
             } catch (_) {
               // Individual cards render their own error states.
@@ -80,16 +76,6 @@ class HomeScreen extends ConsumerWidget {
                   icon: Icons.cloud_off_outlined,
                   title: 'Priorities unavailable',
                   message: 'Open tasks could not be loaded right now.',
-                ),
-                loading: () => const _SmallLoadingCard(height: 180),
-              ),
-              const SizedBox(height: 14),
-              activity.when(
-                data: (logs) => _RecentActivityCard(logs: logs),
-                error: (error, stackTrace) => const _InfoCard(
-                  icon: Icons.cloud_off_outlined,
-                  title: 'Activity unavailable',
-                  message: 'Recent farm activity could not be loaded.',
                 ),
                 loading: () => const _SmallLoadingCard(height: 180),
               ),
@@ -406,8 +392,8 @@ class _FarmPulseCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _HeroMetric(
-                      label: 'Care load',
-                      value: '$careLoad',
+                      label: 'Open tasks',
+                      value: '${summary.openTasks}',
                       icon: Icons.assignment_outlined,
                     ),
                   ),
@@ -468,8 +454,14 @@ class _FarmPulseCard extends StatelessWidget {
     if (summary.healthAlerts > 0 || summary.quarantined > 0) {
       return '${summary.healthAlerts} health alert${summary.healthAlerts == 1 ? '' : 's'} and ${summary.quarantined} quarantined need attention.';
     }
+    if (summary.overdueTasks > 0) {
+      return '${summary.overdueTasks} overdue task${summary.overdueTasks == 1 ? '' : 's'} need follow-up today.';
+    }
     if (summary.openTasks > 0) {
       return '${summary.openTasks} open task${summary.openTasks == 1 ? '' : 's'} keeping today active.';
+    }
+    if (summary.expectedKindlings > 0) {
+      return '${summary.expectedKindlings} expected kindling${summary.expectedKindlings == 1 ? '' : 's'} on the calendar.';
     }
     if (summary.readyForSale > 0) {
       return '${summary.readyForSale} rabbit${summary.readyForSale == 1 ? '' : 's'} ready for sale.';
@@ -612,6 +604,97 @@ class _HerdStatusCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 1.8,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            children: [
+              _HerdMiniStat(
+                icon: Icons.female,
+                label: 'Does',
+                value: summary.does,
+              ),
+              _HerdMiniStat(
+                icon: Icons.male,
+                label: 'Bucks',
+                value: summary.bucks,
+              ),
+              _HerdMiniStat(
+                icon: Icons.child_care_outlined,
+                label: 'Live kits',
+                value: summary.liveKits,
+              ),
+              _HerdMiniStat(
+                icon: Icons.event_available_outlined,
+                label: 'Expected kindlings',
+                value: summary.expectedKindlings,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HerdMiniStat extends StatelessWidget {
+  const _HerdMiniStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: RabbiTrackColors.cream,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: RabbiTrackColors.mintGreen),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: RabbiTrackColors.sageGreen, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$value',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: RabbiTrackColors.forestGreen,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF61706A),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -849,47 +932,6 @@ class _PriorityTasksCard extends StatelessWidget {
   }
 }
 
-class _RecentActivityCard extends StatelessWidget {
-  const _RecentActivityCard({required this.logs});
-
-  final List<ActivityLogSummary> logs;
-
-  @override
-  Widget build(BuildContext context) {
-    final recentLogs = logs.take(3).toList();
-
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: _SectionTitle(
-                  title: 'Recent activity',
-                  subtitle: 'What changed on the farm',
-                ),
-              ),
-              TextButton(
-                onPressed: () => context.push('/activity'),
-                child: const Text('Open'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (recentLogs.isEmpty)
-            const _CompactEmptyLine(
-              icon: Icons.history,
-              text: 'Farm activity will appear here.',
-            )
-          else
-            for (final log in recentLogs) _ActivityPreview(log: log),
-        ],
-      ),
-    );
-  }
-}
-
 class _TaskPreview extends StatelessWidget {
   const _TaskPreview({required this.task});
 
@@ -1001,125 +1043,6 @@ class _TaskPreview extends StatelessWidget {
     }
 
     return dueOn;
-  }
-}
-
-class _ActivityPreview extends StatelessWidget {
-  const _ActivityPreview({required this.log});
-
-  final ActivityLogSummary log;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: _toneFor(log.action).withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _iconFor(log.action),
-                  color: RabbiTrackColors.forestGreen,
-                  size: 18,
-                ),
-              ),
-              Container(
-                width: 2,
-                height: 28,
-                color: RabbiTrackColors.mintGreen.withValues(alpha: 0.55),
-              ),
-            ],
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.only(bottom: 8),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Color(0xFFEDEBE3))),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    log.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: RabbiTrackColors.forestGreen,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    [
-                      _actionLabel(log.action),
-                      log.actorName,
-                      log.createdAt,
-                    ].whereType<String>().join(' | '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFF61706A)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _iconFor(String action) {
-    if (action.startsWith('sale.')) {
-      return Icons.sell_outlined;
-    }
-    if (action.startsWith('expense.')) {
-      return Icons.payments_outlined;
-    }
-    if (action.startsWith('team.')) {
-      return Icons.groups_outlined;
-    }
-
-    return Icons.history;
-  }
-
-  String _actionLabel(String action) {
-    if (action.startsWith('sale.')) {
-      return 'Sale';
-    }
-    if (action.startsWith('expense.')) {
-      return 'Expense';
-    }
-    if (action.startsWith('team.')) {
-      return 'Team';
-    }
-    if (action.startsWith('rabbit.')) {
-      return 'Rabbit';
-    }
-
-    return 'Activity';
-  }
-
-  Color _toneFor(String action) {
-    if (action.startsWith('sale.')) {
-      return RabbiTrackColors.warmTan;
-    }
-    if (action.startsWith('expense.')) {
-      return const Color(0xFFB86955);
-    }
-    if (action.startsWith('rabbit.')) {
-      return RabbiTrackColors.sageGreen;
-    }
-
-    return RabbiTrackColors.mintGreen;
   }
 }
 

@@ -4,12 +4,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/app_state.dart';
 import '../../shared/money_format.dart';
+import '../../shared/snackbars.dart';
 import '../../theme/rabbitrack_colors.dart';
+import '../auth/auth_controller.dart';
 import '../expenses/expense_list_screen.dart';
 import '../sales/sale_list_screen.dart';
 import 'finance_report_controller.dart';
 import 'finance_report_models.dart';
 import 'finance_report_options.dart';
+import 'finance_report_repository.dart';
+import 'report_csv_exporter.dart';
 
 class FinanceReportScreen extends ConsumerStatefulWidget {
   const FinanceReportScreen({super.key});
@@ -50,6 +54,13 @@ class _FinanceReportScreenState extends ConsumerState<FinanceReportScreen>
         title: const Text('Finance report'),
         backgroundColor: RabbiTrackColors.forestGreen,
         foregroundColor: RabbiTrackColors.cream,
+        actions: [
+          IconButton(
+            tooltip: 'Export CSV',
+            onPressed: _exportCsv,
+            icon: const Icon(Icons.download_outlined),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: RabbiTrackColors.cream,
@@ -84,6 +95,34 @@ class _FinanceReportScreenState extends ConsumerState<FinanceReportScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _exportCsv() async {
+    final farm = ref.read(authControllerProvider).valueOrNull?.selectedFarm;
+    if (farm == null) {
+      showErrorSnackBar(context, 'Select a farm before exporting.');
+      return;
+    }
+
+    try {
+      final csv = await ref
+          .read(financeReportRepositoryProvider)
+          .exportCsv(farm.id);
+      final path = await saveReportCsv(
+        fileName: 'finance-report.csv',
+        contents: csv,
+      );
+
+      if (!mounted) {
+        return;
+      }
+      showSuccessSnackBar(context, 'Finance report saved to $path');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      showErrorSnackBar(context, 'Could not export finance report.');
+    }
   }
 }
 

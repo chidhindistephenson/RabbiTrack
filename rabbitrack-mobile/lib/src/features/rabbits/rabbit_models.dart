@@ -6,7 +6,10 @@ class RabbitSummary {
     required this.status,
     this.name,
     this.breed,
+    this.dateOfBirth,
     this.currentLocationName,
+    this.motherId,
+    this.fatherId,
   });
 
   factory RabbitSummary.fromJson(Map<String, dynamic> json) {
@@ -16,8 +19,11 @@ class RabbitSummary {
       name: json['name'] as String?,
       sex: json['sex'] as String,
       breed: json['breed'] as String?,
+      dateOfBirth: json['date_of_birth'] as String?,
       status: json['status'] as String,
       currentLocationName: json['current_location_name'] as String?,
+      motherId: json['mother_id'] as String?,
+      fatherId: json['father_id'] as String?,
     );
   }
 
@@ -26,8 +32,11 @@ class RabbitSummary {
   final String? name;
   final String sex;
   final String? breed;
+  final String? dateOfBirth;
   final String status;
   final String? currentLocationName;
+  final String? motherId;
+  final String? fatherId;
 }
 
 class RabbitDetail extends RabbitSummary {
@@ -39,10 +48,10 @@ class RabbitDetail extends RabbitSummary {
     required this.movements,
     super.name,
     super.breed,
+    super.dateOfBirth,
     this.currentLocationId,
     super.currentLocationName,
     this.colour,
-    this.dateOfBirth,
     this.weightValue,
     this.weightUnit,
     this.tagOrTattoo,
@@ -85,7 +94,6 @@ class RabbitDetail extends RabbitSummary {
 
   final String? colour;
   final String? currentLocationId;
-  final String? dateOfBirth;
   final String? weightValue;
   final String? weightUnit;
   final String? tagOrTattoo;

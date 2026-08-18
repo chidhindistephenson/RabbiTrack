@@ -44,6 +44,11 @@ class FarmController extends Controller
                 'pregnancy_check_end_days' => 14,
                 'nest_box_lead_days' => 3,
                 'weaning_days' => 35,
+                'sale_ready_min_age_days' => 70,
+                'sale_ready_min_weight_kg' => 2.0,
+                'retirement_review_litter_threshold' => 0,
+                'breeding_min_doe_age_days' => 0,
+                'breeding_min_buck_age_days' => 0,
             ],
         ]);
 
@@ -68,12 +73,27 @@ class FarmController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'currency' => ['required', 'string', 'size:3'],
             'timezone' => ['required', 'string', 'max:80', 'timezone'],
+            'sale_ready_min_age_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'sale_ready_min_weight_kg' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'retirement_review_litter_threshold' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'breeding_min_doe_age_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'breeding_min_buck_age_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
         ]);
+
+        $settings = $farm->settings ?? [];
+        $settings['sale_ready_min_age_days'] = (int) ($validated['sale_ready_min_age_days'] ?? 0);
+        $settings['sale_ready_min_weight_kg'] = isset($validated['sale_ready_min_weight_kg'])
+            ? (float) $validated['sale_ready_min_weight_kg']
+            : null;
+        $settings['retirement_review_litter_threshold'] = (int) ($validated['retirement_review_litter_threshold'] ?? 0);
+        $settings['breeding_min_doe_age_days'] = (int) ($validated['breeding_min_doe_age_days'] ?? 0);
+        $settings['breeding_min_buck_age_days'] = (int) ($validated['breeding_min_buck_age_days'] ?? 0);
 
         $farm->update([
             'name' => $validated['name'],
             'currency' => Str::upper($validated['currency']),
             'timezone' => $validated['timezone'],
+            'settings' => $settings,
         ]);
 
         $farm->activityLogs()->create([
@@ -84,6 +104,11 @@ class FarmController extends Controller
                 'name' => $farm->name,
                 'currency' => $farm->currency,
                 'timezone' => $farm->timezone,
+                'sale_ready_min_age_days' => $settings['sale_ready_min_age_days'],
+                'sale_ready_min_weight_kg' => $settings['sale_ready_min_weight_kg'],
+                'retirement_review_litter_threshold' => $settings['retirement_review_litter_threshold'],
+                'breeding_min_doe_age_days' => $settings['breeding_min_doe_age_days'],
+                'breeding_min_buck_age_days' => $settings['breeding_min_buck_age_days'],
             ],
         ]);
 
@@ -105,6 +130,17 @@ class FarmController extends Controller
                 'active_rabbits' => $farm->rabbits()
                     ->whereNotIn('status', ['sold', 'retired', 'deceased', 'culled'])
                     ->count(),
+                'does' => $farm->rabbits()
+                    ->where('sex', 'female')
+                    ->whereNotIn('status', ['sold', 'retired', 'deceased', 'culled'])
+                    ->count(),
+                'bucks' => $farm->rabbits()
+                    ->where('sex', 'male')
+                    ->whereNotIn('status', ['sold', 'retired', 'deceased', 'culled'])
+                    ->count(),
+                'live_kits' => $farm->litters()
+                    ->whereIn('status', ['newborn', 'nursing', 'partially_weaned'])
+                    ->sum('current_live_count'),
                 'ready_for_sale' => $farm->rabbits()
                     ->where('status', 'ready_for_sale')
                     ->count(),
@@ -124,6 +160,14 @@ class FarmController extends Controller
                     ->count(),
                 'open_tasks' => $farm->tasks()
                     ->where('status', 'open')
+                    ->count(),
+                'overdue_tasks' => $farm->tasks()
+                    ->where('status', 'open')
+                    ->whereDate('due_on', '<', now($farm->timezone)->toDateString())
+                    ->count(),
+                'expected_kindlings' => $farm->matings()
+                    ->whereIn('status', ['awaiting_pregnancy_check', 'uncertain', 'pregnant'])
+                    ->whereDate('expected_kindling_on', '>=', now($farm->timezone)->toDateString())
                     ->count(),
                 'total_sales' => $farm->sales()->count(),
                 'sales_revenue' => number_format($salesRevenue, 2, '.', ''),
@@ -168,6 +212,7 @@ class FarmController extends Controller
             'timezone' => $membership->farm->timezone,
             'currency' => $membership->farm->currency,
             'role' => $membership->role,
+            'settings' => $membership->farm->settings ?? [],
         ];
     }
 

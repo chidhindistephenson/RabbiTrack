@@ -7,8 +7,10 @@ use App\Models\FarmMembership;
 use App\Models\Litter;
 use App\Models\Location;
 use App\Models\Rabbit;
+use App\Models\Treatment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -482,6 +484,80 @@ class RabbitRegistryTest extends TestCase
             'status' => 'ready_for_sale',
             'notes' => 'Reached target weight',
         ]);
+    }
+
+    public function test_member_cannot_mark_rabbit_ready_for_sale_during_withdrawal(): void
+    {
+        Carbon::setTestNow('2026-08-10');
+        [$user, $farm] = $this->memberContext();
+        $rabbit = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'status' => 'resting',
+        ]);
+        Treatment::factory()->create([
+            'farm_id' => $farm->id,
+            'rabbit_id' => $rabbit->id,
+            'withdrawal_days' => 14,
+            'withdrawal_ends_on' => '2026-08-13',
+            'status' => 'completed',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/v1/farms/{$farm->id}/rabbits/{$rabbit->id}", [
+            'status' => 'ready_for_sale',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+
+        $this->assertDatabaseHas('rabbits', [
+            'id' => $rabbit->id,
+            'status' => 'resting',
+        ]);
+        Carbon::setTestNow();
+    }
+
+    public function test_member_cannot_mark_rabbit_ready_for_sale_before_configured_age_or_weight(): void
+    {
+        Carbon::setTestNow('2026-08-17');
+        [$user, $farm] = $this->memberContext();
+        $farm->update([
+            'settings' => array_merge($farm->settings ?? [], [
+                'sale_ready_min_age_days' => 70,
+                'sale_ready_min_weight_kg' => 2.0,
+            ]),
+        ]);
+        $rabbit = Rabbit::factory()->create([
+            'farm_id' => $farm->id,
+            'date_of_birth' => '2026-07-01',
+            'weight_value' => 1.750,
+            'status' => 'growing',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/v1/farms/{$farm->id}/rabbits/{$rabbit->id}", [
+            'status' => 'ready_for_sale',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+
+        $rabbit->update([
+            'date_of_birth' => '2026-05-01',
+            'weight_value' => 1.750,
+        ]);
+
+        $this->patchJson("/api/v1/farms/{$farm->id}/rabbits/{$rabbit->id}", [
+            'status' => 'ready_for_sale',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+
+        $this->assertDatabaseHas('rabbits', [
+            'id' => $rabbit->id,
+            'status' => 'growing',
+        ]);
+        Carbon::setTestNow();
     }
 
     public function test_member_cannot_mark_rabbit_sold_without_sale_record(): void

@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BreedingCalendarController;
+use App\Http\Controllers\Api\V1\BuckPerformanceReportController;
+use App\Http\Controllers\Api\V1\DoePerformanceReportController;
 use App\Http\Controllers\Api\V1\ExpenseController;
 use App\Http\Controllers\Api\V1\FarmController;
 use App\Http\Controllers\Api\V1\FarmInvitationController;
@@ -9,10 +12,13 @@ use App\Http\Controllers\Api\V1\FarmMemberController;
 use App\Http\Controllers\Api\V1\FinanceReportController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\HealthEventController;
+use App\Http\Controllers\Api\V1\HealthReportController;
 use App\Http\Controllers\Api\V1\KindlingController;
+use App\Http\Controllers\Api\V1\LitterPerformanceReportController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\MatingController;
 use App\Http\Controllers\Api\V1\PregnancyCheckController;
+use App\Http\Controllers\Api\V1\PopulationReportController;
 use App\Http\Controllers\Api\V1\RabbitController;
 use App\Http\Controllers\Api\V1\SaleController;
 use App\Http\Controllers\Api\V1\TaskController;
@@ -60,6 +66,12 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/farms/{farm}/expenses/summary', [ExpenseController::class, 'summary']);
         Route::post('/farms/{farm}/expenses', [ExpenseController::class, 'store']);
         Route::get('/farms/{farm}/reports/finance/monthly', [FinanceReportController::class, 'monthly']);
+        Route::get('/farms/{farm}/reports/breeding/calendar', [BreedingCalendarController::class, 'index']);
+        Route::get('/farms/{farm}/reports/health', [HealthReportController::class, 'show']);
+        Route::get('/farms/{farm}/reports/litters/performance', [LitterPerformanceReportController::class, 'show']);
+        Route::get('/farms/{farm}/reports/bucks/performance', [BuckPerformanceReportController::class, 'show']);
+        Route::get('/farms/{farm}/reports/does/performance', [DoePerformanceReportController::class, 'show']);
+        Route::get('/farms/{farm}/reports/population', [PopulationReportController::class, 'show']);
         Route::get('/farms/{farm}/matings', [MatingController::class, 'index']);
         Route::post('/farms/{farm}/matings', [MatingController::class, 'store']);
         Route::get('/farms/{farm}/matings/{mating}', [MatingController::class, 'show']);
@@ -68,8 +80,11 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/farms/{farm}/matings/{mating}/pregnancy-checks/latest', [PregnancyCheckController::class, 'reviseLatest']);
         Route::get('/farms/{farm}/litters', [KindlingController::class, 'index']);
         Route::get('/farms/{farm}/litters/{litter}', [KindlingController::class, 'show']);
+        Route::post('/farms/{farm}/litters/{litter}/checks', [KindlingController::class, 'storeCheck']);
+        Route::post('/farms/{farm}/litters/{litter}/fosters', [KindlingController::class, 'storeFoster']);
         Route::post('/farms/{farm}/kindlings', [KindlingController::class, 'store']);
         Route::post('/farms/{farm}/litters/{litter}/weanings', [WeaningController::class, 'store']);
+        Route::post('/farms/{farm}/litters/{litter}/conversions', [KindlingController::class, 'convertKits']);
         Route::get('/farms/{farm}/weights', [WeightRecordController::class, 'index']);
         Route::post('/farms/{farm}/weights', [WeightRecordController::class, 'store']);
         Route::get('/farms/{farm}/health-events', [HealthEventController::class, 'index']);

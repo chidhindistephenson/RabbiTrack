@@ -8,6 +8,10 @@ import '../../shared/detail_section.dart';
 import '../../shared/rabbit_icon.dart';
 import '../../shared/soft_list_tile.dart';
 import '../../theme/rabbitrack_colors.dart';
+import '../reports/buck_performance_report_controller.dart';
+import '../reports/buck_performance_report_models.dart';
+import '../reports/doe_performance_report_controller.dart';
+import '../reports/doe_performance_report_models.dart';
 import '../weights/weight_controller.dart';
 import '../weights/weight_models.dart';
 import 'rabbit_controller.dart';
@@ -64,6 +68,8 @@ class RabbitDetailScreen extends ConsumerWidget {
               const SizedBox(height: 14),
               _RecordLinks(rabbitId: rabbitId, status: item.status),
               const SizedBox(height: 14),
+              _BreedingPerformanceSection(rabbit: item),
+              const SizedBox(height: 14),
               _ParentsSection(
                 mother: _parentLabel(item.mother),
                 father: _parentLabel(item.father),
@@ -95,6 +101,175 @@ class RabbitDetailScreen extends ConsumerWidget {
     }
 
     return '${parent.identifier}${parent.name == null ? '' : ' - ${parent.name}'}';
+  }
+}
+
+class _BreedingPerformanceSection extends ConsumerWidget {
+  const _BreedingPerformanceSection({required this.rabbit});
+
+  final RabbitDetail rabbit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (rabbit.sex == 'female') {
+      final report = ref.watch(doePerformanceReportProvider);
+
+      return report.when(
+        data: (item) {
+          DoePerformanceRow? row;
+          for (final doe in item.does) {
+            if (doe.id == rabbit.id) {
+              row = doe;
+              break;
+            }
+          }
+
+          return _DoePerformanceCard(row: row);
+        },
+        error: (error, stackTrace) => const _PerformanceUnavailable(),
+        loading: () => const _PerformanceLoading(),
+      );
+    }
+
+    if (rabbit.sex == 'male') {
+      final report = ref.watch(buckPerformanceReportProvider);
+
+      return report.when(
+        data: (item) {
+          BuckPerformanceRow? row;
+          for (final buck in item.bucks) {
+            if (buck.id == rabbit.id) {
+              row = buck;
+              break;
+            }
+          }
+
+          return _BuckPerformanceCard(row: row);
+        },
+        error: (error, stackTrace) => const _PerformanceUnavailable(),
+        loading: () => const _PerformanceLoading(),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+class _DoePerformanceCard extends StatelessWidget {
+  const _DoePerformanceCard({required this.row});
+
+  final DoePerformanceRow? row;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileSection(
+      title: 'Doe performance',
+      actionLabel: 'Report',
+      onAction: () => context.push('/reports/does/performance'),
+      child: row == null
+          ? const Text('No doe breeding performance recorded yet')
+          : GridView.count(
+              crossAxisCount: 2,
+              childAspectRatio: 2.6,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              children: [
+                _InfoTile(
+                  icon: Icons.favorite,
+                  label: 'Pregnancies',
+                  value: '${row!.confirmedPregnancies}',
+                ),
+                _InfoTile(
+                  icon: Icons.child_care,
+                  label: 'Kindlings',
+                  value: '${row!.kindlings}',
+                ),
+                _InfoTile(
+                  icon: Icons.check_circle_outline,
+                  label: 'Weaned',
+                  value: '${row!.kitsWeaned}',
+                ),
+                _InfoTile(
+                  icon: Icons.trending_up,
+                  label: 'Survival',
+                  value: '${row!.survivalRate.toStringAsFixed(1)}%',
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _BuckPerformanceCard extends StatelessWidget {
+  const _BuckPerformanceCard({required this.row});
+
+  final BuckPerformanceRow? row;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileSection(
+      title: 'Buck performance',
+      actionLabel: 'Report',
+      onAction: () => context.push('/reports/bucks/performance'),
+      child: row == null
+          ? const Text('No buck breeding performance recorded yet')
+          : GridView.count(
+              crossAxisCount: 2,
+              childAspectRatio: 2.6,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              children: [
+                _InfoTile(
+                  icon: Icons.percent,
+                  label: 'Conception',
+                  value: '${row!.conceptionRate.toStringAsFixed(1)}%',
+                ),
+                _InfoTile(
+                  icon: Icons.favorite,
+                  label: 'Matings',
+                  value: '${row!.matings}',
+                ),
+                _InfoTile(
+                  icon: Icons.child_care,
+                  label: 'Litters',
+                  value: '${row!.litters}',
+                ),
+                _InfoTile(
+                  icon: Icons.check_circle_outline,
+                  label: 'Weaned',
+                  value: '${row!.kitsWeaned}',
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _PerformanceLoading extends StatelessWidget {
+  const _PerformanceLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _ProfileSection(
+      title: 'Breeding performance',
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _PerformanceUnavailable extends StatelessWidget {
+  const _PerformanceUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _ProfileSection(
+      title: 'Breeding performance',
+      child: Text('Could not load breeding performance.'),
+    );
   }
 }
 

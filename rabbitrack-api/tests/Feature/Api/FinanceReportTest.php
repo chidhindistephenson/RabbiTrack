@@ -68,6 +68,45 @@ class FinanceReportTest extends TestCase
         CarbonImmutable::setTestNow();
     }
 
+    public function test_member_can_export_monthly_finance_report_as_csv(): void
+    {
+        CarbonImmutable::setTestNow('2026-07-30 12:00:00');
+
+        $user = User::factory()->create();
+        $farm = Farm::factory()->create(['currency' => 'USD']);
+        FarmMembership::factory()->create([
+            'farm_id' => $farm->id,
+            'user_id' => $user->id,
+            'role' => 'owner',
+        ]);
+        $rabbit = Rabbit::factory()->create(['farm_id' => $farm->id]);
+
+        Sale::factory()->create([
+            'farm_id' => $farm->id,
+            'rabbit_id' => $rabbit->id,
+            'sold_by_id' => $user->id,
+            'sold_on' => '2026-07-05',
+            'sale_price' => 40,
+        ]);
+        Expense::factory()->create([
+            'farm_id' => $farm->id,
+            'recorded_by_id' => $user->id,
+            'spent_on' => '2026-07-15',
+            'amount' => 12.50,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->get("/api/v1/farms/{$farm->id}/reports/finance/monthly?format=csv");
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $this->assertStringContainsString('month,label,currency,revenue,expenses,net_income', $response->getContent());
+        $this->assertStringContainsString('2026-07,"Jul 2026",USD,40.00,12.50,27.50', $response->getContent());
+
+        CarbonImmutable::setTestNow();
+    }
+
     public function test_non_member_cannot_view_monthly_finance_report(): void
     {
         $farm = Farm::factory()->create();

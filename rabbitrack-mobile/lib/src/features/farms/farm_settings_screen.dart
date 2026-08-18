@@ -28,6 +28,11 @@ class _FarmSettingsScreenState extends ConsumerState<FarmSettingsScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _saleAgeController = TextEditingController();
+  final _saleWeightController = TextEditingController();
+  final _retirementThresholdController = TextEditingController();
+  final _breedingDoeAgeController = TextEditingController();
+  final _breedingBuckAgeController = TextEditingController();
   String _currency = defaultFarmCurrency;
   String _timezone = 'Africa/Johannesburg';
   bool _initialized = false;
@@ -36,6 +41,11 @@ class _FarmSettingsScreenState extends ConsumerState<FarmSettingsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _saleAgeController.dispose();
+    _saleWeightController.dispose();
+    _retirementThresholdController.dispose();
+    _breedingDoeAgeController.dispose();
+    _breedingBuckAgeController.dispose();
     super.dispose();
   }
 
@@ -59,6 +69,15 @@ class _FarmSettingsScreenState extends ConsumerState<FarmSettingsScreen> {
             name: name,
             currency: _currency,
             timezone: _timezone,
+            saleReadyMinAgeDays:
+                int.tryParse(_saleAgeController.text.trim()) ?? 0,
+            saleReadyMinWeightKg: _optionalDouble(_saleWeightController.text),
+            retirementReviewLitterThreshold:
+                int.tryParse(_retirementThresholdController.text.trim()) ?? 0,
+            breedingMinDoeAgeDays:
+                int.tryParse(_breedingDoeAgeController.text.trim()) ?? 0,
+            breedingMinBuckAgeDays:
+                int.tryParse(_breedingBuckAgeController.text.trim()) ?? 0,
           );
 
       ref.read(authControllerProvider.notifier).replaceFarm(updatedFarm);
@@ -92,6 +111,12 @@ class _FarmSettingsScreenState extends ConsumerState<FarmSettingsScreen> {
     _timezone = _timezones.contains(farm.timezone)
         ? farm.timezone
         : 'Africa/Johannesburg';
+    _saleAgeController.text = farm.saleReadyMinAgeDays.toString();
+    _saleWeightController.text = farm.saleReadyMinWeightKg?.toString() ?? '';
+    _retirementThresholdController.text = farm.retirementReviewLitterThreshold
+        .toString();
+    _breedingDoeAgeController.text = farm.breedingMinDoeAgeDays.toString();
+    _breedingBuckAgeController.text = farm.breedingMinBuckAgeDays.toString();
     _initialized = true;
   }
 
@@ -172,6 +197,87 @@ class _FarmSettingsScreenState extends ConsumerState<FarmSettingsScreen> {
               onChanged: (value) => setState(() => _timezone = value!),
             ),
             const SizedBox(height: 18),
+            Text(
+              'Sale readiness',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: RabbiTrackColors.forestGreen,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _saleAgeController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Minimum age in days',
+                helperText: 'Use 0 to disable age checks.',
+                border: OutlineInputBorder(),
+              ),
+              validator: _nonNegativeIntValidator,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _saleWeightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Minimum weight kg',
+                helperText: 'Leave blank or use 0 to disable weight checks.',
+                border: OutlineInputBorder(),
+              ),
+              validator: _optionalNonNegativeNumberValidator,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Breeding eligibility',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: RabbiTrackColors.forestGreen,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _breedingDoeAgeController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Minimum doe breeding age days',
+                helperText: 'Use 0 to disable doe age checks.',
+                border: OutlineInputBorder(),
+              ),
+              validator: _nonNegativeIntValidator,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _breedingBuckAgeController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Minimum buck breeding age days',
+                helperText: 'Use 0 to disable buck age checks.',
+                border: OutlineInputBorder(),
+              ),
+              validator: _nonNegativeIntValidator,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Retirement review',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: RabbiTrackColors.forestGreen,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _retirementThresholdController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Review after completed litters',
+                helperText: 'Use 0 to disable automatic review tasks.',
+                border: OutlineInputBorder(),
+              ),
+              validator: _nonNegativeIntValidator,
+            ),
+            const SizedBox(height: 18),
             FilledButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving
@@ -189,5 +295,43 @@ class _FarmSettingsScreenState extends ConsumerState<FarmSettingsScreen> {
 
   String? _farmNameValidator(String? value) {
     return value == null || value.trim().isEmpty ? 'Enter a farm name' : null;
+  }
+
+  String? _nonNegativeIntValidator(String? value) {
+    final parsed = int.tryParse(value?.trim() ?? '');
+    if (parsed == null) {
+      return 'Enter a whole number';
+    }
+    if (parsed < 0) {
+      return 'Value cannot be negative';
+    }
+
+    return null;
+  }
+
+  String? _optionalNonNegativeNumberValidator(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final parsed = double.tryParse(trimmed);
+    if (parsed == null) {
+      return 'Enter a number';
+    }
+    if (parsed < 0) {
+      return 'Value cannot be negative';
+    }
+
+    return null;
+  }
+
+  double? _optionalDouble(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    return double.tryParse(trimmed);
   }
 }

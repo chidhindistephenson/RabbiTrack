@@ -24,6 +24,11 @@ class FarmFactory extends Factory
                 'pregnancy_check_end_days' => 14,
                 'nest_box_lead_days' => 3,
                 'weaning_days' => 35,
+                'sale_ready_min_age_days' => 0,
+                'sale_ready_min_weight_kg' => null,
+                'retirement_review_litter_threshold' => 0,
+                'breeding_min_doe_age_days' => 0,
+                'breeding_min_buck_age_days' => 0,
             ],
         ];
     }

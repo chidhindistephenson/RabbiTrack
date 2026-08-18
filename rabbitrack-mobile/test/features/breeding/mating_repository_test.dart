@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rabbitrack_mobile/src/features/breeding/mating_repository.dart';
+import 'package:rabbitrack_mobile/src/shared/offline_action_queue.dart';
 
 void main() {
   test('list sends rabbit filter when supplied', () async {
@@ -34,6 +36,7 @@ void main() {
       outcome: 'attempted',
       behaviorObserved: 'Mounted twice',
       notes: 'Repeat if no signs.',
+      confirmRelationshipRisk: true,
     );
 
     expect(adapter.method, 'POST');
@@ -47,6 +50,37 @@ void main() {
       containsPair('behavior_observed', 'Mounted twice'),
     );
     expect(adapter.requestData, containsPair('notes', 'Repeat if no signs.'));
+    expect(
+      adapter.requestData,
+      containsPair('confirm_relationship_risk', true),
+    );
+  });
+
+  test('create queues mating when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = MatingRepository(
+      dio: dio,
+      token: 'token',
+      offlineQueue: queue,
+    );
+
+    final mating = await repository.create(
+      farmId: 'farm-1',
+      doeId: 'doe-1',
+      buckId: 'buck-1',
+      matedAt: '2026-08-05',
+      outcome: 'observed',
+    );
+
+    expect(mating.id, startsWith('local-'));
+    expect(mating.status, 'awaiting_pregnancy_check');
+    expect(mating.pregnancyCheckDueOn, '2026-08-19');
+    expect(mating.expectedKindlingOn, '2026-09-05');
+    expect(await queue.pendingCount(), 1);
   });
 
   test('recordPregnancyCheck sends result and notes', () async {
@@ -74,6 +108,27 @@ void main() {
     );
   });
 
+  test('recordPregnancyCheck queues when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = MatingRepository(
+      dio: dio,
+      token: 'token',
+      offlineQueue: queue,
+    );
+
+    await repository.recordPregnancyCheck(
+      farmId: 'farm-1',
+      matingId: 'mating-1',
+      result: 'pregnant',
+    );
+
+    expect(await queue.pendingCount(), 1);
+  });
+
   test('revisePregnancyDecision patches the latest pregnancy check', () async {
     final adapter = _CapturingAdapter();
     final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
@@ -95,6 +150,27 @@ void main() {
     expect(adapter.requestData, containsPair('result', 'not_pregnant'));
   });
 
+  test('revisePregnancyDecision queues when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = MatingRepository(
+      dio: dio,
+      token: 'token',
+      offlineQueue: queue,
+    );
+
+    await repository.revisePregnancyDecision(
+      farmId: 'farm-1',
+      matingId: 'mating-1',
+      result: 'uncertain',
+    );
+
+    expect(await queue.pendingCount(), 1);
+  });
+
   test('delete removes a mating record', () async {
     final adapter = _CapturingAdapter();
     final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
@@ -105,6 +181,23 @@ void main() {
 
     expect(adapter.method, 'DELETE');
     expect(adapter.path, '/api/v1/farms/farm-1/matings/mating-1');
+  });
+
+  test('delete queues when offline', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = MatingRepository(
+      dio: dio,
+      token: 'token',
+      offlineQueue: queue,
+    );
+
+    await repository.delete(farmId: 'farm-1', matingId: 'mating-1');
+
+    expect(await queue.pendingCount(), 1);
   });
 }
 
@@ -152,4 +245,22 @@ class _CapturingAdapter implements HttpClientAdapter {
 
     return options.method == 'GET' ? [mating] : mating;
   }
+}
+
+class _OfflineAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    throw DioException(
+      requestOptions: options,
+      type: DioExceptionType.connectionError,
+      error: const SocketException('offline'),
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
