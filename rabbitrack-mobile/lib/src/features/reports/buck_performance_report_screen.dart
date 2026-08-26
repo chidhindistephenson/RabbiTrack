@@ -78,7 +78,7 @@ class _BuckPerformanceReportScreenState
         error: (error, stackTrace) => AppState(
           icon: Icons.cloud_off_outlined,
           title: 'Buck report unavailable',
-          message: 'Check the API server and try again.',
+          message: 'Try again. Offline demo data should remain available.',
           actionLabel: 'Retry',
           onAction: () =>
               ref.invalidate(buckPerformanceReportForPeriodProvider(_period)),

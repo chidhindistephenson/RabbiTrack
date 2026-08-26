@@ -158,7 +158,7 @@ class _RabbitListContentState extends ConsumerState<_RabbitListContent> {
             error: (error, stackTrace) => AppState(
               icon: Icons.cloud_off_outlined,
               title: 'Could not load rabbits',
-              message: 'Check that the API server is running, then try again.',
+              message: 'Try again. Offline demo data should remain available.',
               actionLabel: 'Retry',
               onAction: () => ref.invalidate(rabbitListProvider),
               minHeight: 320,

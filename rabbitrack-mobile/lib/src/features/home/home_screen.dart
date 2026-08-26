@@ -65,7 +65,7 @@ class HomeScreen extends ConsumerWidget {
                   icon: Icons.cloud_off_outlined,
                   title: 'Finance unavailable',
                   message:
-                      'Check the API server to refresh revenue and expense totals.',
+                      'Try again. Offline demo data should remain available.',
                 ),
                 loading: () => const _SmallLoadingCard(height: 170),
               ),
@@ -1293,7 +1293,7 @@ class _HeroFallbackCard extends StatelessWidget {
     return const _InfoCard(
       icon: Icons.cloud_off_outlined,
       title: 'Dashboard unavailable',
-      message: 'Check the API server to refresh your farm dashboard.',
+      message: 'Try again. Offline demo data should remain available.',
     );
   }
 }

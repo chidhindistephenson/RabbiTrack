@@ -86,7 +86,7 @@ class RabbitDetailScreen extends ConsumerWidget {
         error: (error, stackTrace) => AppState(
           icon: Icons.cloud_off_outlined,
           title: 'Could not load rabbit profile',
-          message: 'Check that the API server is running, then try again.',
+          message: 'Try again. Offline demo data should remain available.',
           actionLabel: 'Retry',
           onAction: () => ref.invalidate(rabbitDetailProvider(rabbitId)),
         ),

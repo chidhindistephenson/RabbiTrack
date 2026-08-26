@@ -232,7 +232,7 @@ class _PregnancyCheckScreenState extends ConsumerState<PregnancyCheckScreen> {
         error: (error, stackTrace) => AppState(
           icon: Icons.cloud_off_outlined,
           title: 'Could not load mating record',
-          message: 'Check that the API server is running, then try again.',
+          message: 'Try again. Offline demo data should remain available.',
           actionLabel: 'Retry',
           onAction: () => ref.invalidate(matingListProvider),
         ),

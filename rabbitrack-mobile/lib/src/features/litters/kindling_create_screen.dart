@@ -301,7 +301,7 @@ class _KindlingCreateScreenState extends ConsumerState<KindlingCreateScreen> {
         error: (error, stackTrace) => AppState(
           icon: Icons.cloud_off_outlined,
           title: 'Could not load kindling form',
-          message: 'Check the API server and try again.',
+          message: 'Try again. Offline demo data should remain available.',
           actionLabel: 'Retry',
           onAction: () {
             ref.invalidate(matingListProvider);

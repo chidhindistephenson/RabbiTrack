@@ -175,7 +175,8 @@ class _HealthCreateScreenState extends ConsumerState<HealthCreateScreen> {
                       error: (error, stackTrace) => AppState(
                         icon: Icons.cloud_off_outlined,
                         title: 'Could not load rabbit',
-                        message: 'Check the API server and try again.',
+                        message:
+                            'Try again. Offline demo data should remain available.',
                         actionLabel: 'Retry',
                         onAction: () =>
                             ref.invalidate(rabbitDetailProvider(_rabbitId!)),
@@ -290,7 +291,7 @@ class _HealthCreateScreenState extends ConsumerState<HealthCreateScreen> {
         error: (error, stackTrace) => AppState(
           icon: Icons.cloud_off_outlined,
           title: 'Could not load rabbits',
-          message: 'Check the API server and try again.',
+          message: 'Try again. Offline demo data should remain available.',
           actionLabel: 'Retry',
           onAction: () => ref.invalidate(rabbitListProvider),
         ),
