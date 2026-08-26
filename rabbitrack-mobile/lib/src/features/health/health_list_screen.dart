@@ -9,13 +9,140 @@ import '../../theme/rabbitrack_colors.dart';
 import '../auth/auth_controller.dart';
 import '../home/farm_summary_controller.dart';
 import '../rabbits/rabbit_controller.dart';
+import '../reports/health_report_repository.dart';
+import '../reports/health_report_screen.dart';
+import '../reports/report_csv_exporter.dart';
 import 'health_controller.dart';
 import 'health_models.dart';
 import 'health_options.dart';
 import 'health_repository.dart';
 
-class HealthListScreen extends ConsumerWidget {
+class HealthListScreen extends ConsumerStatefulWidget {
   const HealthListScreen({super.key, this.rabbitId});
+
+  final String? rabbitId;
+
+  @override
+  ConsumerState<HealthListScreen> createState() => _HealthListScreenState();
+}
+
+class _HealthListScreenState extends ConsumerState<HealthListScreen>
+    with SingleTickerProviderStateMixin {
+  TabController? _tabController;
+
+  bool get _isRabbitProfileView => widget.rabbitId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_isRabbitProfileView) {
+      _tabController = TabController(length: 2, vsync: this)
+        ..addListener(_handleTabChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController?.removeListener(_handleTabChanged);
+    _tabController?.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabController = _tabController;
+    if (!_isRabbitProfileView && tabController != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Health'),
+          backgroundColor: RabbiTrackColors.forestGreen,
+          foregroundColor: RabbiTrackColors.cream,
+          actions: [
+            if (tabController.index == 1)
+              IconButton(
+                tooltip: 'Export CSV',
+                onPressed: _exportHealthCsv,
+                icon: const Icon(Icons.download_outlined),
+              ),
+          ],
+          bottom: TabBar(
+            controller: tabController,
+            labelColor: RabbiTrackColors.cream,
+            unselectedLabelColor: RabbiTrackColors.mintGreen,
+            indicatorColor: RabbiTrackColors.warmTan,
+            tabs: const [
+              Tab(text: 'Records'),
+              Tab(text: 'Report'),
+            ],
+          ),
+        ),
+        floatingActionButton: tabController.index == 0
+            ? FloatingActionButton.extended(
+                onPressed: () => context.push('/health/new'),
+                icon: const Icon(Icons.add),
+                label: const Text('Event'),
+              )
+            : null,
+        body: TabBarView(
+          controller: tabController,
+          children: [const _HealthListContent(), const HealthReportContent()],
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rabbit health'),
+        backgroundColor: RabbiTrackColors.forestGreen,
+        foregroundColor: RabbiTrackColors.cream,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () =>
+            context.push('/health/new?rabbitId=${widget.rabbitId}'),
+        icon: const Icon(Icons.add),
+        label: const Text('Event'),
+      ),
+      body: _HealthListContent(rabbitId: widget.rabbitId),
+    );
+  }
+
+  Future<void> _exportHealthCsv() async {
+    final farm = ref.read(authControllerProvider).valueOrNull?.selectedFarm;
+    if (farm == null) {
+      showErrorSnackBar(context, 'Select a farm before exporting.');
+      return;
+    }
+
+    try {
+      final csv = await ref
+          .read(healthReportRepositoryProvider)
+          .exportCsv(farm.id);
+      final path = await saveReportCsv(
+        fileName: 'health-report.csv',
+        contents: csv,
+      );
+
+      if (!mounted) {
+        return;
+      }
+      showSuccessSnackBar(context, 'Health report saved to $path');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      showErrorSnackBar(context, 'Could not export health report.');
+    }
+  }
+}
+
+class _HealthListContent extends ConsumerWidget {
+  const _HealthListContent({this.rabbitId});
 
   final String? rabbitId;
 
@@ -26,64 +153,48 @@ class HealthListScreen extends ConsumerWidget {
         ? ref.watch(rabbitHealthEventListProvider(rabbitId!))
         : ref.watch(healthEventListProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isRabbitProfileView ? 'Rabbit health' : 'Health'),
-        backgroundColor: RabbiTrackColors.forestGreen,
-        foregroundColor: RabbiTrackColors.cream,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(
-          isRabbitProfileView
-              ? '/health/new?rabbitId=$rabbitId'
-              : '/health/new',
-        ),
-        icon: const Icon(Icons.add),
-        label: const Text('Event'),
-      ),
-      body: events.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return AppState(
-              icon: Icons.medical_services_outlined,
-              title: isRabbitProfileView
-                  ? 'No health records for this rabbit'
-                  : 'No health events yet',
-              message:
-                  'Record symptoms, diagnosis, isolation needs, and treatment follow-up from one place.',
-              actionLabel: 'Add event',
-              actionIcon: Icons.add,
-              onAction: () => context.push(
-                isRabbitProfileView
-                    ? '/health/new?rabbitId=$rabbitId'
-                    : '/health/new',
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => isRabbitProfileView
-                ? ref.refresh(rabbitHealthEventListProvider(rabbitId!).future)
-                : ref.refresh(healthEventListProvider.future),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemBuilder: (context, index) => _HealthTile(event: items[index]),
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemCount: items.length,
+    return events.when(
+      data: (items) {
+        if (items.isEmpty) {
+          return AppState(
+            icon: Icons.medical_services_outlined,
+            title: isRabbitProfileView
+                ? 'No health records for this rabbit'
+                : 'No health events yet',
+            message:
+                'Record symptoms, diagnosis, isolation needs, and treatment follow-up from one place.',
+            actionLabel: 'Add event',
+            actionIcon: Icons.add,
+            onAction: () => context.push(
+              isRabbitProfileView
+                  ? '/health/new?rabbitId=$rabbitId'
+                  : '/health/new',
             ),
           );
-        },
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Could not load health',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => isRabbitProfileView
-              ? ref.invalidate(rabbitHealthEventListProvider(rabbitId!))
-              : ref.invalidate(healthEventListProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => isRabbitProfileView
+              ? ref.refresh(rabbitHealthEventListProvider(rabbitId!).future)
+              : ref.refresh(healthEventListProvider.future),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemBuilder: (context, index) => _HealthTile(event: items[index]),
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemCount: items.length,
+          ),
+        );
+      },
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load health',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => isRabbitProfileView
+            ? ref.invalidate(rabbitHealthEventListProvider(rabbitId!))
+            : ref.invalidate(healthEventListProvider),
       ),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

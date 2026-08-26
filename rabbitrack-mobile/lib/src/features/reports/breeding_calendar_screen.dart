@@ -17,8 +17,6 @@ class BreedingCalendarScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final events = ref.watch(breedingCalendarProvider);
-
     return Scaffold(
       appBar: AppBar(
         leading: const FallbackBackButton(fallbackLocation: '/more'),
@@ -33,46 +31,7 @@ class BreedingCalendarScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: events.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return const AppState(
-              icon: Icons.event_available_outlined,
-              title: 'No breeding dates yet',
-              message:
-                  'Mating, kindling, and weaning records will appear here automatically.',
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(breedingCalendarProvider.future),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
-              children: [
-                const _CalendarHeader(),
-                const SizedBox(height: 12),
-                for (final group in _groupedEvents(items)) ...[
-                  _DateHeading(date: group.date),
-                  const SizedBox(height: 8),
-                  for (final event in group.events) ...[
-                    _CalendarEventTile(event: event),
-                    const SizedBox(height: 10),
-                  ],
-                  const SizedBox(height: 6),
-                ],
-              ],
-            ),
-          );
-        },
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Calendar unavailable',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(breedingCalendarProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-      ),
+      body: const BreedingCalendarContent(),
     );
   }
 
@@ -106,6 +65,56 @@ class BreedingCalendarScreen extends ConsumerWidget {
       }
       showErrorSnackBar(context, 'Could not export breeding calendar.');
     }
+  }
+}
+
+class BreedingCalendarContent extends ConsumerWidget {
+  const BreedingCalendarContent({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final events = ref.watch(breedingCalendarProvider);
+
+    return events.when(
+      data: (items) {
+        if (items.isEmpty) {
+          return const AppState(
+            icon: Icons.event_available_outlined,
+            title: 'No breeding dates yet',
+            message:
+                'Mating, kindling, and weaning records will appear here automatically.',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => ref.refresh(breedingCalendarProvider.future),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+            children: [
+              const _CalendarHeader(),
+              const SizedBox(height: 12),
+              for (final group in _groupedEvents(items)) ...[
+                _DateHeading(date: group.date),
+                const SizedBox(height: 8),
+                for (final event in group.events) ...[
+                  _CalendarEventTile(event: event),
+                  const SizedBox(height: 10),
+                ],
+                const SizedBox(height: 6),
+              ],
+            ],
+          ),
+        );
+      },
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Calendar unavailable',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => ref.invalidate(breedingCalendarProvider),
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+    );
   }
 
   List<_EventGroup> _groupedEvents(List<BreedingCalendarEvent> events) {

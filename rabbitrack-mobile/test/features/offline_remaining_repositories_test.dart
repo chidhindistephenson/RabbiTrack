@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rabbitrack_mobile/src/features/activity/activity_repository.dart';
 import 'package:rabbitrack_mobile/src/features/expenses/expense_repository.dart';
 import 'package:rabbitrack_mobile/src/features/farms/farm_repository.dart';
 import 'package:rabbitrack_mobile/src/features/locations/location_repository.dart';
@@ -56,6 +57,34 @@ void main() {
     expect(created.id, startsWith('local-'));
     expect(updated.id, 'location-1');
     expect(await queue.pendingCount(), 2);
+  });
+
+  test('offline demo locations include queued creates and details', () async {
+    final queue = await _queue();
+    final repository = LocationRepository(
+      dio: _offlineDio(),
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.create(
+      farmId: 'offline-demo-farm',
+      type: 'cage',
+      name: 'Offline Cage',
+      code: 'OC-1',
+      capacity: 3,
+    );
+
+    final locations = await repository.list('offline-demo-farm');
+    final pending = locations.last;
+    final detail = await repository.show(
+      farmId: 'offline-demo-farm',
+      locationId: pending.id,
+    );
+
+    expect(pending.name, 'Offline Cage');
+    expect(detail.code, 'OC-1');
+    expect(detail.rabbits, isEmpty);
   });
 
   test('farm create and update queue when offline', () async {
@@ -119,6 +148,83 @@ void main() {
     expect(updated.role, 'manager');
     expect(await queue.pendingCount(), 5);
   });
+
+  test('offline demo team list includes seeded and pending members', () async {
+    final queue = await _queue();
+    final repository = TeamRepository(
+      dio: _offlineDio(),
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.add(
+      farmId: 'offline-demo-farm',
+      email: 'helper@rabbitrack.local',
+      role: 'worker',
+    );
+
+    final members = await repository.list('offline-demo-farm');
+
+    expect(
+      members.any((member) => member.email == 'owner@rabbitrack.local'),
+      isTrue,
+    );
+    expect(members.last.email, 'helper@rabbitrack.local');
+    expect(members.last.status, 'pending');
+  });
+
+  test('offline demo activity list includes queued farm changes', () async {
+    final queue = await _queue();
+    final teamRepository = TeamRepository(
+      dio: _offlineDio(),
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+    final activityRepository = ActivityRepository(
+      dio: _offlineDio(),
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await teamRepository.add(
+      farmId: 'offline-demo-farm',
+      email: 'helper@rabbitrack.local',
+      role: 'worker',
+    );
+
+    final activity = await activityRepository.list('offline-demo-farm');
+
+    expect(
+      activity.any((log) => log.description == 'Team invitation saved locally'),
+      isTrue,
+    );
+  });
+
+  test(
+    'empty offline farm starts without seeded locations team or activity',
+    () async {
+      final queue = await _queue();
+      final locations = LocationRepository(
+        dio: _offlineDio(),
+        token: 'offline-demo-owner',
+        offlineQueue: queue,
+      );
+      final team = TeamRepository(
+        dio: _offlineDio(),
+        token: 'offline-demo-owner',
+        offlineQueue: queue,
+      );
+      final activity = ActivityRepository(
+        dio: _offlineDio(),
+        token: 'offline-demo-owner',
+        offlineQueue: queue,
+      );
+
+      expect(await locations.list('offline-empty-farm'), isEmpty);
+      expect(await team.list('offline-empty-farm'), isEmpty);
+      expect(await activity.list('offline-empty-farm'), isEmpty);
+    },
+  );
 }
 
 Future<OfflineActionQueue> _queue() async {

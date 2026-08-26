@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/app_state.dart';
 import '../../shared/money_format.dart';
+import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
+import '../../shared/snackbars.dart';
 import '../../theme/rabbitrack_colors.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_models.dart';
@@ -15,6 +18,7 @@ class AccountScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(authControllerProvider).valueOrNull;
+    final selectedFarm = session?.selectedFarm;
 
     if (session == null) {
       return const Scaffold(
@@ -116,6 +120,14 @@ class AccountScreen extends ConsumerWidget {
                 subtitle: 'Check backend connection',
                 onTap: () => context.push('/api-status'),
               ),
+              if (isOfflineDemoSession(session) && selectedFarm != null)
+                _AccountRow(
+                  icon: Icons.restart_alt,
+                  title: 'Reset offline records',
+                  subtitle: 'Clear local changes for ${selectedFarm.name}',
+                  onTap: () =>
+                      _confirmResetOfflineRecords(context, ref, selectedFarm),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -138,6 +150,45 @@ class AccountScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmResetOfflineRecords(
+    BuildContext context,
+    WidgetRef ref,
+    FarmSummary farm,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset offline records?'),
+        content: Text(
+          'This clears local changes saved on ${farm.name}. Demo starter records will remain available.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await ref.read(offlineActionQueueProvider).clearForFarm(farm.id);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    showSuccessSnackBar(context, 'Offline records reset.');
+    context.go('/home');
   }
 }
 

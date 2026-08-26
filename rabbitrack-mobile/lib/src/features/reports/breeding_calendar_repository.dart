@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'breeding_calendar_models.dart';
@@ -48,6 +49,13 @@ class BreedingCalendarRepository {
     required String start,
     required String end,
   }) async {
+    if (_isOfflineDemo) {
+      final events = isOfflineDemoFarm(farmId)
+          ? offlineDemoBreedingCalendar()
+          : const <BreedingCalendarEvent>[];
+      return _calendarCsv(events);
+    }
+
     final response = await dio.get<String>(
       '/farms/$farmId/reports/breeding/calendar',
       queryParameters: {'start': start, 'end': end, 'format': 'csv'},
@@ -59,4 +67,31 @@ class BreedingCalendarRepository {
 
     return response.data ?? '';
   }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+}
+
+String _calendarCsv(List<BreedingCalendarEvent> events) {
+  return [
+    'date,type,title,subtitle,related_type,related_id,rabbit_identifier',
+    for (final event in events)
+      [
+        event.date,
+        event.type,
+        event.title,
+        event.subtitle,
+        event.relatedType,
+        event.relatedId,
+        event.rabbitIdentifier,
+      ].map(_csvValue).join(','),
+  ].join('\n');
+}
+
+String _csvValue(Object? value) {
+  final text = (value ?? '').toString();
+  if (!text.contains(',') && !text.contains('"') && !text.contains('\n')) {
+    return text;
+  }
+
+  return '"${text.replaceAll('"', '""')}"';
 }

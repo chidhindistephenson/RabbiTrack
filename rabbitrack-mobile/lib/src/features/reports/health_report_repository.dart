@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'health_report_models.dart';
@@ -32,6 +33,23 @@ class HealthReportRepository {
   }
 
   Future<String> exportCsv(String farmId) async {
+    if (_isOfflineDemo) {
+      final report = isOfflineDemoFarm(farmId)
+          ? offlineDemoHealthReport
+          : const HealthReport(
+              activeHealthEvents: 0,
+              activeTreatments: 0,
+              withdrawalRestrictions: 0,
+              mortalityCount: 0,
+              eventsBySeverity: [],
+              eventsByBodySystem: [],
+              eventsByDiagnosis: [],
+              medicineUse: [],
+              withdrawals: [],
+            );
+      return _healthCsv(report);
+    }
+
     final response = await dio.get<String>(
       '/farms/$farmId/reports/health',
       queryParameters: {'format': 'csv'},
@@ -43,4 +61,33 @@ class HealthReportRepository {
 
     return response.data ?? '';
   }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+}
+
+String _healthCsv(HealthReport report) {
+  return [
+    'metric,value',
+    'active_health_events,${report.activeHealthEvents}',
+    'active_treatments,${report.activeTreatments}',
+    'withdrawal_restrictions,${report.withdrawalRestrictions}',
+    'mortality_count,${report.mortalityCount}',
+    for (final row in report.eventsBySeverity)
+      'severity:${_csvValue(row.label)},${row.count}',
+    for (final row in report.eventsByBodySystem)
+      'body_system:${_csvValue(row.label)},${row.count}',
+    for (final row in report.eventsByDiagnosis)
+      'diagnosis:${_csvValue(row.label)},${row.count}',
+    for (final row in report.medicineUse)
+      'medicine:${_csvValue(row.label)},${row.count}',
+  ].join('\n');
+}
+
+String _csvValue(Object? value) {
+  final text = (value ?? '').toString();
+  if (!text.contains(',') && !text.contains('"') && !text.contains('\n')) {
+    return text;
+  }
+
+  return '"${text.replaceAll('"', '""')}"';
 }

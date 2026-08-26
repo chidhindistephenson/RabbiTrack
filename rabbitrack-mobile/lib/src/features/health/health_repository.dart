@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'health_models.dart';
@@ -32,6 +33,14 @@ class HealthRepository {
     String farmId, {
     String? rabbitId,
   }) async {
+    if (_isOfflineDemo) {
+      return [
+        if (isOfflineDemoFarm(farmId))
+          ...offlineDemoHealthEvents(rabbitId: rabbitId),
+        ...await _pendingOfflineHealthEvents(farmId, rabbitId: rabbitId),
+      ];
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/health-events',
       queryParameters: {'rabbit_id': ?rabbitId},
@@ -224,5 +233,59 @@ class HealthRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<HealthEventSummary>> _pendingOfflineHealthEvents(
+    String farmId, {
+    String? rabbitId,
+  }) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/health-events',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    return actions
+        .map((action) {
+          final data = action.data;
+          final localRabbitId = data['rabbit_id'] as String?;
+          if (rabbitId != null && localRabbitId != rabbitId) {
+            return null;
+          }
+
+          final symptoms = data['symptoms'] as String?;
+          final severity = data['severity'] as String?;
+          if (localRabbitId == null || symptoms == null || severity == null) {
+            return null;
+          }
+
+          final rabbit = offlineDemoRabbitDetail(localRabbitId);
+
+          return HealthEventSummary(
+            id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+            rabbitIdentifier: rabbit?.identifier ?? localRabbitId,
+            observedOn: _dateValue(
+              data['observed_on'] as String? ??
+                  action.createdAt.toIso8601String(),
+            ),
+            symptoms: symptoms,
+            diagnosis: data['diagnosis'] as String?,
+            bodySystem: data['body_system'] as String?,
+            severity: severity,
+            status: 'open',
+            isolationRequired: data['isolation_required'] as bool? ?? false,
+            treatmentsCount: 0,
+            notes: data['notes'] as String?,
+          );
+        })
+        .whereType<HealthEventSummary>()
+        .toList();
+  }
+
+  String _dateValue(String value) {
+    return value.split('T').first;
   }
 }

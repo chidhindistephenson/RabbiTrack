@@ -347,10 +347,23 @@ AuthSession? offlineDemoSessionForCredentials({
     return null;
   }
 
-  final farm = FarmSummary(
+  final demoFarm = FarmSummary(
     id: 'offline-demo-farm',
     name: 'RabbiTrack Demo Farm',
     code: 'DEMO-FARM',
+    role: user.role,
+    timezone: 'Africa/Johannesburg',
+    currency: 'USD',
+    saleReadyMinAgeDays: 70,
+    saleReadyMinWeightKg: 2,
+    retirementReviewLitterThreshold: 0,
+    breedingMinDoeAgeDays: 0,
+    breedingMinBuckAgeDays: 0,
+  );
+  final emptyFarm = FarmSummary(
+    id: 'offline-empty-farm',
+    name: 'Empty Offline Farm',
+    code: 'EMPTY-FARM',
     role: user.role,
     timezone: 'Africa/Johannesburg',
     currency: 'USD',
@@ -366,8 +379,8 @@ AuthSession? offlineDemoSessionForCredentials({
     userName: user.name,
     email: user.email,
     username: user.username,
-    farms: [farm],
-    selectedFarm: farm,
+    farms: [demoFarm, emptyFarm],
+    selectedFarm: demoFarm,
   );
 }
 

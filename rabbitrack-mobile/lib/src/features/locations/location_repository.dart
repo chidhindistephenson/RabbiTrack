@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'location_models.dart';
@@ -29,6 +30,13 @@ class LocationRepository {
   final OfflineActionQueue? offlineQueue;
 
   Future<List<FarmLocationSummary>> list(String farmId) async {
+    if (_isOfflineDemo) {
+      return [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoLocations(),
+        ...await _pendingOfflineLocations(farmId),
+      ];
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/locations',
       options: _authOptions(),
@@ -156,6 +164,19 @@ class LocationRepository {
     required String farmId,
     required String locationId,
   }) async {
+    if (_isOfflineDemo) {
+      final location = isOfflineDemoFarm(farmId)
+          ? offlineDemoLocationDetail(locationId)
+          : null;
+      if (location != null) {
+        return location;
+      }
+      final pending = await _pendingOfflineLocation(farmId, locationId);
+      if (pending != null) {
+        return pending;
+      }
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/locations/$locationId',
       options: _authOptions(),
@@ -172,5 +193,87 @@ class LocationRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<FarmLocationSummary>> _pendingOfflineLocations(
+    String farmId,
+  ) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/locations',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    return actions
+        .map((action) => _locationFromQueuedCreate(action))
+        .whereType<FarmLocationSummary>()
+        .toList();
+  }
+
+  Future<FarmLocationDetail?> _pendingOfflineLocation(
+    String farmId,
+    String locationId,
+  ) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/locations',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    for (final action in actions) {
+      final id = _localIdFor(action);
+      if (id != locationId) {
+        continue;
+      }
+
+      final summary = _locationFromQueuedCreate(action);
+      if (summary == null) {
+        return null;
+      }
+
+      return FarmLocationDetail(
+        id: summary.id,
+        parentId: summary.parentId,
+        type: summary.type,
+        name: summary.name,
+        code: summary.code,
+        capacity: summary.capacity,
+        occupiedCount: summary.occupiedCount,
+        isActive: summary.isActive,
+        notes: summary.notes,
+        rabbits: const [],
+      );
+    }
+
+    return null;
+  }
+
+  FarmLocationSummary? _locationFromQueuedCreate(QueuedOfflineAction action) {
+    final data = action.data;
+    final type = data['type'] as String?;
+    final name = data['name'] as String?;
+    if (type == null || name == null) {
+      return null;
+    }
+
+    return FarmLocationSummary(
+      id: _localIdFor(action),
+      parentId: data['parent_id'] as String?,
+      type: type,
+      name: name,
+      code: data['code'] as String?,
+      capacity: data['capacity'] as int?,
+      occupiedCount: 0,
+      isActive: true,
+      notes: data['notes'] as String?,
+    );
+  }
+
+  String _localIdFor(QueuedOfflineAction action) {
+    return 'local-${action.createdAt.microsecondsSinceEpoch}';
   }
 }

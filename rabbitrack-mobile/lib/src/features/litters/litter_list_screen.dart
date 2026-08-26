@@ -14,8 +14,6 @@ class LitterListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final litters = ref.watch(litterListProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Litters'),
@@ -27,44 +25,54 @@ class LitterListScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Kindling'),
       ),
-      body: litters.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return AppState(
-              icon: Icons.child_care,
-              title: 'No litters yet',
-              message:
-                  'Record a kindling to start tracking live kits, weaning dates, and litter weight history.',
-              actionLabel: 'Record kindling',
-              actionIcon: Icons.add,
-              onAction: () => context.push('/litters/new'),
-            );
-          }
+      body: const LitterListContent(),
+    );
+  }
+}
 
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(litterListProvider.future),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemBuilder: (context, index) => _LitterTile(
-                litter: items[index],
-                onTap: () => context.push('/litters/${items[index].id}'),
-                onWean: () =>
-                    context.push('/litters/${items[index].id}/weaning'),
-              ),
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemCount: items.length,
-            ),
+class LitterListContent extends ConsumerWidget {
+  const LitterListContent({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final litters = ref.watch(litterListProvider);
+
+    return litters.when(
+      data: (items) {
+        if (items.isEmpty) {
+          return AppState(
+            icon: Icons.child_care,
+            title: 'No litters yet',
+            message:
+                'Record a kindling to start tracking live kits, weaning dates, and litter weight history.',
+            actionLabel: 'Record kindling',
+            actionIcon: Icons.add,
+            onAction: () => context.push('/litters/new'),
           );
-        },
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Could not load litters',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(litterListProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => ref.refresh(litterListProvider.future),
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+            itemBuilder: (context, index) => _LitterTile(
+              litter: items[index],
+              onTap: () => context.push('/litters/${items[index].id}'),
+              onWean: () => context.push('/litters/${items[index].id}/weaning'),
+            ),
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemCount: items.length,
+          ),
+        );
+      },
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load litters',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => ref.invalidate(litterListProvider),
       ),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

@@ -29,6 +29,25 @@ void main() {
     expect(adapter.query['format'], 'csv');
     expect(csv, contains('month,label,currency,revenue,expenses,net_income'));
   });
+
+  test(
+    'FinanceReportRepository exports offline demo CSV without API',
+    () async {
+      final adapter = _FinanceReportAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+        ..httpClientAdapter = adapter;
+      final repository = FinanceReportRepository(
+        dio: dio,
+        token: 'offline-demo-owner',
+      );
+
+      final csv = await repository.exportCsv('offline-demo-farm');
+
+      expect(adapter.path, isNull);
+      expect(csv, contains('month,label,revenue,expenses,net_income,currency'));
+      expect(csv, contains('43.75'));
+    },
+  );
 }
 
 class _FinanceReportAdapter implements HttpClientAdapter {

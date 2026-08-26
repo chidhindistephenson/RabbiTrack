@@ -61,6 +61,40 @@ void main() {
     expect(await queue.pendingCount(), 1);
   });
 
+  test('offline demo list and detail include queued kindlings', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = LitterRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.recordKindling(
+      farmId: 'offline-demo-farm',
+      doeId: 'offline-doe-0047',
+      kitsBornAlive: 6,
+      kitsStillborn: 1,
+      kitsWeak: 0,
+      birthWeightValue: 0.72,
+    );
+
+    final litters = await repository.list('offline-demo-farm');
+    final pending = litters.last;
+    final detail = await repository.show(
+      farmId: 'offline-demo-farm',
+      litterId: pending.id,
+    );
+
+    expect(pending.identifier, startsWith('LIT-'));
+    expect(pending.currentLiveCount, 6);
+    expect(detail.kitsStillborn, 1);
+    expect(detail.weights.single.stage, 'birth');
+  });
+
   test('recordWeaning sends weaning fields', () async {
     final adapter = _CapturingAdapter();
     final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))

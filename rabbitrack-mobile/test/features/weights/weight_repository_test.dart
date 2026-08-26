@@ -55,6 +55,35 @@ void main() {
     expect(weight.weightUnit, 'kg');
     expect(await queue.pendingCount(), 1);
   });
+
+  test('offline demo list includes queued rabbit weights', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = WeightRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.recordRabbitWeight(
+      farmId: 'offline-demo-farm',
+      rabbitId: 'offline-buck-0003',
+      weightValue: 3.15,
+      method: 'scale',
+    );
+
+    final weights = await repository.list(
+      'offline-demo-farm',
+      rabbitId: 'offline-buck-0003',
+    );
+
+    expect(weights.single.rabbitIdentifier, 'BUCK-0003');
+    expect(weights.single.weightValue, '3.15');
+    expect(weights.single.method, 'scale');
+  });
 }
 
 class _CapturingAdapter implements HttpClientAdapter {

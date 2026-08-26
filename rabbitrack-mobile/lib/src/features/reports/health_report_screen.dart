@@ -16,8 +16,6 @@ class HealthReportScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final report = ref.watch(healthReportProvider);
-
     return Scaffold(
       appBar: AppBar(
         leading: const FallbackBackButton(fallbackLocation: '/more'),
@@ -32,51 +30,7 @@ class HealthReportScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: report.when(
-        data: (item) => RefreshIndicator(
-          onRefresh: () => ref.refresh(healthReportProvider.future),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
-            children: [
-              _HealthSummaryGrid(report: item),
-              const SizedBox(height: 12),
-              _ReportGroup(
-                title: 'Severity',
-                rows: item.eventsBySeverity,
-                emptyLabel: 'No active health events',
-              ),
-              const SizedBox(height: 12),
-              _ReportGroup(
-                title: 'Body system',
-                rows: item.eventsByBodySystem,
-                emptyLabel: 'No body-system trends yet',
-              ),
-              const SizedBox(height: 12),
-              _ReportGroup(
-                title: 'Diagnosis',
-                rows: item.eventsByDiagnosis,
-                emptyLabel: 'No diagnoses recorded',
-              ),
-              const SizedBox(height: 12),
-              _ReportGroup(
-                title: 'Medicine use',
-                rows: item.medicineUse,
-                emptyLabel: 'No active medicines',
-              ),
-              const SizedBox(height: 12),
-              _WithdrawalSection(withdrawals: item.withdrawals),
-            ],
-          ),
-        ),
-        error: (error, stackTrace) => AppState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Health report unavailable',
-          message: 'Check the API server and try again.',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(healthReportProvider),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-      ),
+      body: const HealthReportContent(),
     );
   }
 
@@ -106,6 +60,61 @@ class HealthReportScreen extends ConsumerWidget {
       }
       showErrorSnackBar(context, 'Could not export health report.');
     }
+  }
+}
+
+class HealthReportContent extends ConsumerWidget {
+  const HealthReportContent({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final report = ref.watch(healthReportProvider);
+
+    return report.when(
+      data: (item) => RefreshIndicator(
+        onRefresh: () => ref.refresh(healthReportProvider.future),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+          children: [
+            _HealthSummaryGrid(report: item),
+            const SizedBox(height: 12),
+            _ReportGroup(
+              title: 'Severity',
+              rows: item.eventsBySeverity,
+              emptyLabel: 'No active health events',
+            ),
+            const SizedBox(height: 12),
+            _ReportGroup(
+              title: 'Body system',
+              rows: item.eventsByBodySystem,
+              emptyLabel: 'No body-system trends yet',
+            ),
+            const SizedBox(height: 12),
+            _ReportGroup(
+              title: 'Diagnosis',
+              rows: item.eventsByDiagnosis,
+              emptyLabel: 'No diagnoses recorded',
+            ),
+            const SizedBox(height: 12),
+            _ReportGroup(
+              title: 'Medicine use',
+              rows: item.medicineUse,
+              emptyLabel: 'No active medicines',
+            ),
+            const SizedBox(height: 12),
+            _WithdrawalSection(withdrawals: item.withdrawals),
+          ],
+        ),
+      ),
+      error: (error, stackTrace) => AppState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Health report unavailable',
+        message: 'Check the API server and try again.',
+        actionLabel: 'Retry',
+        onAction: () => ref.invalidate(healthReportProvider),
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+    );
   }
 }
 

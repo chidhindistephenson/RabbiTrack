@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import 'breeding_calendar_models.dart';
 import 'breeding_calendar_repository.dart';
@@ -10,6 +11,14 @@ final breedingCalendarProvider =
       final farm = session?.selectedFarm;
 
       if (farm == null) {
+        return const [];
+      }
+
+      if (isOfflineDemoSession(session) && isOfflineDemoFarm(farm.id)) {
+        return offlineDemoBreedingCalendar();
+      }
+
+      if (isOfflineDemoSession(session) && isOfflineEmptyFarm(farm.id)) {
         return const [];
       }
 

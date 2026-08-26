@@ -19,7 +19,7 @@ class OfflineActionQueue {
   Directory? _queueDirectory;
   bool _isReplaying = false;
 
-  Future<void> enqueue({
+  Future<QueuedOfflineAction> enqueue({
     required String method,
     required String path,
     required Map<String, dynamic> data,
@@ -35,15 +35,25 @@ class OfflineActionQueue {
       ),
     );
 
+    final action = QueuedOfflineAction(
+      createdAt: now,
+      method: method.toUpperCase(),
+      path: path,
+      data: data,
+      headers: headers,
+    );
+
     await file.writeAsString(
       jsonEncode({
-        'created_at': now.toIso8601String(),
-        'method': method.toUpperCase(),
-        'path': path,
-        'data': data,
-        'headers': headers,
+        'created_at': action.createdAt.toIso8601String(),
+        'method': action.method,
+        'path': action.path,
+        'data': action.data,
+        'headers': action.headers,
       }),
     );
+
+    return action;
   }
 
   Future<int> pendingCount() async {
@@ -56,6 +66,64 @@ class OfflineActionQueue {
         .list()
         .where((entity) => entity is File && entity.path.endsWith('.json'))
         .length;
+  }
+
+  Future<List<QueuedOfflineAction>> pendingActions() async {
+    final directory = await _directory();
+    if (!await directory.exists()) {
+      return const [];
+    }
+
+    final files = await directory
+        .list()
+        .where((entity) => entity is File && entity.path.endsWith('.json'))
+        .cast<File>()
+        .toList();
+    files.sort((a, b) => a.path.compareTo(b.path));
+
+    final actions = <QueuedOfflineAction>[];
+    for (final file in files) {
+      final action = await _readAction(file);
+      if (action != null) {
+        actions.add(action);
+      }
+    }
+
+    return actions;
+  }
+
+  Future<List<QueuedOfflineAction>> pendingActionsFor({
+    required String method,
+    required String path,
+  }) async {
+    final normalizedMethod = method.toUpperCase();
+    final actions = await pendingActions();
+
+    return actions
+        .where(
+          (action) => action.method == normalizedMethod && action.path == path,
+        )
+        .toList();
+  }
+
+  Future<void> clearForFarm(String farmId) async {
+    final directory = await _directory();
+    if (!await directory.exists()) {
+      return;
+    }
+
+    final files = await directory
+        .list()
+        .where((entity) => entity is File && entity.path.endsWith('.json'))
+        .cast<File>()
+        .toList();
+
+    for (final file in files) {
+      final action = await _readAction(file);
+      if (action == null || action.path.startsWith('/farms/$farmId/')) {
+        await file.delete();
+      }
+    }
   }
 
   Future<void> replay(Dio dio) async {
@@ -114,6 +182,7 @@ class OfflineActionQueue {
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
 
       return QueuedOfflineAction(
+        createdAt: DateTime.parse(json['created_at'] as String),
         method: json['method'] as String,
         path: json['path'] as String,
         data: Map<String, dynamic>.from(json['data'] as Map),
@@ -142,12 +211,14 @@ class OfflineActionQueue {
 
 class QueuedOfflineAction {
   const QueuedOfflineAction({
+    required this.createdAt,
     required this.method,
     required this.path,
     required this.data,
     required this.headers,
   });
 
+  final DateTime createdAt;
   final String method;
   final String path;
   final Map<String, dynamic> data;

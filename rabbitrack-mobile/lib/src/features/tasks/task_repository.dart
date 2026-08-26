@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'task_models.dart';
@@ -29,6 +30,22 @@ class TaskRepository {
   final OfflineActionQueue? offlineQueue;
 
   Future<List<TaskSummary>> list(String farmId, {String? due}) async {
+    if (_isOfflineDemo) {
+      final patchesByTaskId = await _taskPatchesById(farmId);
+      final tasks = [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoTasks(DateTime.now()),
+        ...await _pendingOfflineTasks(farmId),
+      ];
+
+      return tasks
+          .map(
+            (task) => _applyOfflineTaskPatches(task, patchesByTaskId[task.id]),
+          )
+          .where((task) => task.status == 'open')
+          .where((task) => _matchesDueFilter(task, due))
+          .toList();
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/tasks',
       queryParameters: {'status': 'open', 'due': ?due},
@@ -43,6 +60,29 @@ class TaskRepository {
   }
 
   Future<TaskSummaryCounts> summary(String farmId) async {
+    if (_isOfflineDemo) {
+      final patchesByTaskId = await _taskPatchesById(farmId);
+      final tasks =
+          [
+                if (isOfflineDemoFarm(farmId))
+                  ...offlineDemoTasks(DateTime.now()),
+                ...await _pendingOfflineTasks(farmId),
+              ]
+              .map(
+                (task) =>
+                    _applyOfflineTaskPatches(task, patchesByTaskId[task.id]),
+              )
+              .where((task) => task.status == 'open')
+              .toList();
+      final today = _dateValue(DateTime.now());
+
+      return TaskSummaryCounts(
+        today: tasks.where((task) => task.dueOn == today).length,
+        overdue: tasks.where((task) => task.dueOn.compareTo(today) < 0).length,
+        open: tasks.length,
+      );
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/tasks/summary',
       options: _authOptions(),
@@ -173,5 +213,105 @@ class TaskRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<TaskSummary>> _pendingOfflineTasks(String farmId) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/tasks',
+        ) ??
+        const [];
+
+    return actions.map((action) {
+      final data = action.data;
+
+      return TaskSummary(
+        id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+        type: 'manual',
+        title: data['title'] as String? ?? 'Pending task',
+        description: data['description'] as String?,
+        dueOn: data['due_on'] as String? ?? _dateValue(action.createdAt),
+        dueTime: data['due_time'] as String?,
+        priority: data['priority'] as String? ?? 'normal',
+        status: 'open',
+      );
+    }).toList();
+  }
+
+  Future<Map<String, List<Map<String, dynamic>>>> _taskPatchesById(
+    String farmId,
+  ) async {
+    final actions = await offlineQueue?.pendingActions() ?? const [];
+    final prefix = '/farms/$farmId/tasks/';
+    final patches = <String, List<Map<String, dynamic>>>{};
+
+    for (final action in actions) {
+      if (action.method != 'PATCH' || !action.path.startsWith(prefix)) {
+        continue;
+      }
+
+      final taskId = action.path.substring(prefix.length);
+      if (taskId.isEmpty) {
+        continue;
+      }
+
+      patches.putIfAbsent(taskId, () => []).add(action.data);
+    }
+
+    return patches;
+  }
+
+  TaskSummary _applyOfflineTaskPatches(
+    TaskSummary task,
+    List<Map<String, dynamic>>? patches,
+  ) {
+    if (patches == null || patches.isEmpty) {
+      return task;
+    }
+
+    var result = task;
+    for (final patch in patches) {
+      final action = patch['action'] as String?;
+      result = TaskSummary(
+        id: result.id,
+        type: result.type,
+        title: result.title,
+        description: result.description,
+        dueOn: action == 'reschedule'
+            ? patch['due_on'] as String? ?? result.dueOn
+            : result.dueOn,
+        dueTime: result.dueTime,
+        priority: result.priority,
+        status: switch (action) {
+          'complete' => 'completed',
+          'cancel' => 'cancelled',
+          _ => result.status,
+        },
+        rabbitIdentifier: result.rabbitIdentifier,
+        locationName: result.locationName,
+      );
+    }
+
+    return result;
+  }
+
+  bool _matchesDueFilter(TaskSummary task, String? due) {
+    final today = _dateValue(DateTime.now());
+
+    return switch (due) {
+      'today' => task.dueOn == today,
+      'overdue' => task.dueOn.compareTo(today) < 0,
+      'upcoming' => task.dueOn.compareTo(today) > 0,
+      _ => true,
+    };
+  }
+
+  String _dateValue(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
   }
 }

@@ -176,6 +176,10 @@ void main() {
     expect(session.selectedFarm?.name, 'RabbiTrack Demo Farm');
     expect(session.selectedFarm?.role, 'owner');
     expect(session.selectedFarm?.currency, 'USD');
+    expect(
+      session.farms.map((farm) => farm.name),
+      containsAll(['RabbiTrack Demo Farm', 'Empty Offline Farm']),
+    );
   });
 
   test('offline demo login rejects unknown or wrong credentials', () {

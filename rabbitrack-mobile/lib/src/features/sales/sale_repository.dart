@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'sale_models.dart';
@@ -29,6 +30,13 @@ class SaleRepository {
   final OfflineActionQueue? offlineQueue;
 
   Future<List<SaleSummary>> list(String farmId, {String? rabbitId}) async {
+    if (_isOfflineDemo) {
+      return [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoSales(rabbitId: rabbitId),
+        ...await _pendingOfflineSales(farmId, rabbitId: rabbitId),
+      ];
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/sales',
       queryParameters: {'rabbit_id': ?rabbitId},
@@ -43,6 +51,26 @@ class SaleRepository {
   }
 
   Future<SaleReport> summary(String farmId) async {
+    if (_isOfflineDemo) {
+      final sales = [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoSales(),
+        ...await _pendingOfflineSales(farmId),
+      ];
+      final total = sales.fold<double>(
+        0,
+        (sum, sale) => sum + (double.tryParse(sale.salePrice) ?? 0),
+      );
+
+      return SaleReport(
+        totalRevenue: total.toStringAsFixed(2),
+        saleCount: sales.length,
+        averageSale: sales.isEmpty
+            ? '0.00'
+            : (total / sales.length).toStringAsFixed(2),
+        currency: 'USD',
+      );
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/sales/summary',
       options: _authOptions(),
@@ -111,5 +139,56 @@ class SaleRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<SaleSummary>> _pendingOfflineSales(
+    String farmId, {
+    String? rabbitId,
+  }) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/sales',
+        ) ??
+        const [];
+
+    return actions
+        .map((action) {
+          final data = action.data;
+          final localRabbitId =
+              data['rabbit_id'] as String? ?? 'pending-rabbit';
+          final rabbit = offlineDemoRabbitDetail(localRabbitId);
+
+          return SaleSummary(
+            id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+            rabbitId: localRabbitId,
+            rabbitIdentifier: rabbit?.identifier ?? 'Pending rabbit',
+            buyerName: data['buyer_name'] as String?,
+            buyerPhone: data['buyer_phone'] as String?,
+            soldOn: data['sold_on'] as String? ?? _dateValue(action.createdAt),
+            salePrice: _money(data['sale_price']),
+            currency: 'USD',
+            notes: data['notes'] as String?,
+          );
+        })
+        .where((sale) => rabbitId == null || sale.rabbitId == rabbitId)
+        .toList();
+  }
+
+  String _money(Object? value) {
+    if (value is num) {
+      return value.toStringAsFixed(2);
+    }
+
+    return double.tryParse(value?.toString() ?? '')?.toStringAsFixed(2) ??
+        '0.00';
+  }
+
+  String _dateValue(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
   }
 }

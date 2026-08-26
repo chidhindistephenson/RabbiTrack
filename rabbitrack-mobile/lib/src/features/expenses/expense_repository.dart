@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'expense_models.dart';
@@ -29,6 +30,13 @@ class ExpenseRepository {
   final OfflineActionQueue? offlineQueue;
 
   Future<List<ExpenseSummary>> list(String farmId) async {
+    if (_isOfflineDemo) {
+      return [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoExpenses(),
+        ...await _pendingOfflineExpenses(farmId),
+      ];
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/expenses',
       options: _authOptions(),
@@ -44,6 +52,39 @@ class ExpenseRepository {
   }
 
   Future<ExpenseReport> summary(String farmId) async {
+    if (_isOfflineDemo) {
+      final expenses = [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoExpenses(),
+        ...await _pendingOfflineExpenses(farmId),
+      ];
+      final total = expenses.fold<double>(
+        0,
+        (sum, expense) => sum + (double.tryParse(expense.amount) ?? 0),
+      );
+      final byCategory = <String, ({double total, int count})>{};
+      for (final expense in expenses) {
+        final current = byCategory[expense.category] ?? (total: 0, count: 0);
+        byCategory[expense.category] = (
+          total: current.total + (double.tryParse(expense.amount) ?? 0),
+          count: current.count + 1,
+        );
+      }
+
+      return ExpenseReport(
+        total: total.toStringAsFixed(2),
+        currency: 'USD',
+        byCategory: byCategory.entries
+            .map(
+              (entry) => ExpenseCategoryTotal(
+                category: entry.key,
+                total: entry.value.total.toStringAsFixed(2),
+                count: entry.value.count,
+              ),
+            )
+            .toList(),
+      );
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/expenses/summary',
       options: _authOptions(),
@@ -110,5 +151,45 @@ class ExpenseRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<ExpenseSummary>> _pendingOfflineExpenses(String farmId) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/expenses',
+        ) ??
+        const [];
+
+    return actions.map((action) {
+      final data = action.data;
+
+      return ExpenseSummary(
+        id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+        category: data['category'] as String? ?? 'other',
+        vendor: data['vendor'] as String?,
+        spentOn: data['spent_on'] as String? ?? _dateValue(action.createdAt),
+        amount: _money(data['amount']),
+        currency: 'USD',
+        notes: data['notes'] as String?,
+      );
+    }).toList();
+  }
+
+  String _money(Object? value) {
+    if (value is num) {
+      return value.toStringAsFixed(2);
+    }
+
+    return double.tryParse(value?.toString() ?? '')?.toStringAsFixed(2) ??
+        '0.00';
+  }
+
+  String _dateValue(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
   }
 }

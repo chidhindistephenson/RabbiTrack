@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'weight_models.dart';
@@ -33,6 +34,14 @@ class WeightRepository {
     String? rabbitId,
     String? litterId,
   }) async {
+    if (_isOfflineDemo) {
+      return _pendingOfflineWeights(
+        farmId,
+        rabbitId: rabbitId,
+        litterId: litterId,
+      );
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/weights',
       queryParameters: {'rabbit_id': ?rabbitId, 'litter_id': ?litterId},
@@ -103,5 +112,68 @@ class WeightRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<WeightSummary>> _pendingOfflineWeights(
+    String farmId, {
+    String? rabbitId,
+    String? litterId,
+  }) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/weights',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    return actions
+        .map((action) {
+          final data = action.data;
+          final localRabbitId = data['rabbit_id'] as String?;
+          final localLitterId = data['litter_id'] as String?;
+          if (rabbitId != null && localRabbitId != rabbitId) {
+            return null;
+          }
+          if (litterId != null && localLitterId != litterId) {
+            return null;
+          }
+
+          final weightValue = data['weight_value'];
+          if (weightValue == null) {
+            return null;
+          }
+
+          final rabbit = localRabbitId == null
+              ? null
+              : offlineDemoRabbitDetail(localRabbitId);
+          final litter = localLitterId == null
+              ? null
+              : offlineDemoLitterDetail(localLitterId);
+
+          return WeightSummary(
+            id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+            rabbitIdentifier: rabbit?.identifier ?? localRabbitId,
+            litterIdentifier: litter?.identifier ?? localLitterId,
+            weighedOn: _dateValue(
+              data['weighed_on'] as String? ??
+                  action.createdAt.toIso8601String(),
+            ),
+            weightValue: weightValue.toString(),
+            weightUnit: data['weight_unit'] as String? ?? 'kg',
+            stage: data['stage'] as String?,
+            kitCount: data['kit_count'] as int?,
+            averageWeightValue: data['average_weight_value']?.toString(),
+            method: data['method'] as String?,
+            notes: data['notes'] as String?,
+          );
+        })
+        .whereType<WeightSummary>()
+        .toList();
+  }
+
+  String _dateValue(String value) {
+    return value.split('T').first;
   }
 }

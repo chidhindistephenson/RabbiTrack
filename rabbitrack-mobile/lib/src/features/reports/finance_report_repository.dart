@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'finance_report_models.dart';
@@ -34,6 +35,13 @@ class FinanceReportRepository {
   }
 
   Future<String> exportCsv(String farmId) async {
+    if (_isOfflineDemo) {
+      final report = isOfflineDemoFarm(farmId)
+          ? offlineDemoFinanceReport(DateTime.now())
+          : const MonthlyFinanceReport(currency: 'USD', months: []);
+      return _financeCsv(report);
+    }
+
     final response = await dio.get<String>(
       '/farms/$farmId/reports/finance/monthly',
       queryParameters: {'format': 'csv'},
@@ -45,4 +53,32 @@ class FinanceReportRepository {
 
     return response.data ?? '';
   }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+}
+
+String _financeCsv(MonthlyFinanceReport report) {
+  final rows = [
+    'month,label,revenue,expenses,net_income,currency',
+    for (final row in report.months)
+      [
+        row.month,
+        row.label,
+        row.revenue,
+        row.expenses,
+        row.netIncome,
+        report.currency,
+      ].map(_csvValue).join(','),
+  ];
+
+  return rows.join('\n');
+}
+
+String _csvValue(Object? value) {
+  final text = (value ?? '').toString();
+  if (!text.contains(',') && !text.contains('"') && !text.contains('\n')) {
+    return text;
+  }
+
+  return '"${text.replaceAll('"', '""')}"';
 }

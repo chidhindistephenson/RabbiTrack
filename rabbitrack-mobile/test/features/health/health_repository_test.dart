@@ -48,6 +48,36 @@ void main() {
     expect(await queue.pendingCount(), 1);
   });
 
+  test('offline demo list includes queued health events', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = HealthRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.create(
+      farmId: 'offline-demo-farm',
+      rabbitId: 'offline-doe-0047',
+      symptoms: 'Watery eyes',
+      severity: 'mild',
+      isolationRequired: true,
+    );
+
+    final events = await repository.list(
+      'offline-demo-farm',
+      rabbitId: 'offline-doe-0047',
+    );
+
+    expect(events.any((event) => event.symptoms == 'Watery eyes'), isTrue);
+    expect(events.last.rabbitIdentifier, 'DOE-0047');
+    expect(events.last.isolationRequired, isTrue);
+  });
+
   test('addTreatment queues treatment when offline', () async {
     final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
     addTearDown(() => temp.delete(recursive: true));

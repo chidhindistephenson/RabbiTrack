@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'litter_models.dart';
@@ -29,6 +30,13 @@ class LitterRepository {
   final OfflineActionQueue? offlineQueue;
 
   Future<List<LitterSummary>> list(String farmId) async {
+    if (_isOfflineDemo) {
+      return [
+        if (isOfflineDemoFarm(farmId)) ...offlineDemoLitters(),
+        ...await _pendingOfflineLitters(farmId),
+      ];
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/litters',
       options: _authOptions(),
@@ -111,6 +119,19 @@ class LitterRepository {
     required String farmId,
     required String litterId,
   }) async {
+    if (_isOfflineDemo) {
+      final litter = isOfflineDemoFarm(farmId)
+          ? offlineDemoLitterDetail(litterId)
+          : null;
+      if (litter != null) {
+        return litter;
+      }
+      final pending = await _pendingOfflineLitter(farmId, litterId);
+      if (pending != null) {
+        return pending;
+      }
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/litters/$litterId',
       options: _authOptions(),
@@ -321,5 +342,122 @@ class LitterRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<LitterSummary>> _pendingOfflineLitters(String farmId) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/kindlings',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    return actions
+        .map((action) => _litterFromQueuedKindling(action))
+        .whereType<LitterSummary>()
+        .toList();
+  }
+
+  Future<LitterDetail?> _pendingOfflineLitter(
+    String farmId,
+    String litterId,
+  ) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/kindlings',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    for (final action in actions) {
+      final summary = _litterFromQueuedKindling(action);
+      if (summary == null || summary.id != litterId) {
+        continue;
+      }
+
+      final data = action.data;
+      final birthWeight = data['birth_weight_value'];
+      final weightValue = birthWeight?.toString();
+      final kitCount = data['kits_born_alive'] as int? ?? 0;
+      final averageWeight = birthWeight is num && kitCount > 0
+          ? (birthWeight / kitCount).toStringAsFixed(3)
+          : null;
+
+      return LitterDetail(
+        id: summary.id,
+        identifier: summary.identifier,
+        doeId: summary.doeId,
+        doeIdentifier: summary.doeIdentifier,
+        buckId: summary.buckId,
+        buckIdentifier: summary.buckIdentifier,
+        kindledOn: summary.kindledOn,
+        currentLiveCount: summary.currentLiveCount,
+        plannedWeaningOn: summary.plannedWeaningOn,
+        status: summary.status,
+        convertedRabbitsCount: summary.convertedRabbitsCount,
+        unconvertedKitsCount: summary.unconvertedKitsCount,
+        kitsBornAlive: data['kits_born_alive'] as int? ?? 0,
+        kitsStillborn: data['kits_stillborn'] as int? ?? 0,
+        kitsWeak: data['kits_weak'] as int? ?? 0,
+        notes: data['notes'] as String?,
+        weanings: const [],
+        checks: const [],
+        fostersOut: const [],
+        fostersIn: const [],
+        weights: weightValue == null
+            ? const []
+            : [
+                LitterWeightSummary(
+                  id: '${summary.id}-birth-weight',
+                  weighedOn: summary.kindledOn,
+                  weightValue: weightValue,
+                  weightUnit: data['weight_unit'] as String? ?? 'kg',
+                  stage: 'birth',
+                  kitCount: kitCount,
+                  averageWeightValue: averageWeight,
+                  method: 'kindling',
+                ),
+              ],
+      );
+    }
+
+    return null;
+  }
+
+  LitterSummary? _litterFromQueuedKindling(QueuedOfflineAction action) {
+    final data = action.data;
+    final kindledOn = _dateValue(
+      data['kindled_on'] as String? ?? action.createdAt.toIso8601String(),
+    );
+    final doeId = data['doe_id'] as String?;
+    final matingId = data['mating_id'] as String?;
+    final mating = matingId == null ? null : offlineDemoMatingDetail(matingId);
+    final doe = offlineDemoRabbitDetail(doeId ?? mating?.doeId ?? '');
+    final kitsBornAlive = data['kits_born_alive'] as int? ?? 0;
+
+    return LitterSummary(
+      id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+      identifier: 'LIT-${kindledOn.replaceAll('-', '').substring(2)}-LOCAL',
+      doeId: doeId ?? mating?.doeId ?? 'pending-doe',
+      doeIdentifier: doe?.identifier ?? mating?.doeIdentifier ?? 'Pending doe',
+      buckIdentifier: mating?.buckIdentifier,
+      kindledOn: kindledOn,
+      currentLiveCount: kitsBornAlive,
+      convertedRabbitsCount: 0,
+      unconvertedKitsCount: kitsBornAlive,
+      plannedWeaningOn: _dateValue(
+        DateTime.tryParse(
+              kindledOn,
+            )?.add(const Duration(days: 35)).toIso8601String() ??
+            action.createdAt.add(const Duration(days: 35)).toIso8601String(),
+      ),
+      status: 'nursing',
+    );
+  }
+
+  String _dateValue(String value) {
+    return value.split('T').first;
   }
 }

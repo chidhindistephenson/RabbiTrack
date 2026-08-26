@@ -100,7 +100,7 @@ class MainNavigationScaffold extends StatelessWidget {
   }
 
   int _selectedIndexFor(String path) {
-    if (path.startsWith('/rabbits')) {
+    if (path.startsWith('/rabbits') || path.startsWith('/litters')) {
       return 1;
     }
     if (path.startsWith('/breeding')) {
@@ -113,7 +113,6 @@ class MainNavigationScaffold extends StatelessWidget {
         path.startsWith('/tasks') ||
         path.startsWith('/sales') ||
         path.startsWith('/locations') ||
-        path.startsWith('/litters') ||
         path.startsWith('/weights')) {
       return 4;
     }

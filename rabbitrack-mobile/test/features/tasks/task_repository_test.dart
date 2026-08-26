@@ -65,6 +65,33 @@ void main() {
     expect(task.title, 'Check feeders');
     expect(await queue.pendingCount(), 1);
   });
+
+  test('offline demo task actions update local lists and summaries', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = TaskRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.complete(
+      farmId: 'offline-demo-farm',
+      taskId: 'offline-task-pregnancy-check',
+    );
+
+    final tasks = await repository.list('offline-demo-farm');
+    final summary = await repository.summary('offline-demo-farm');
+
+    expect(
+      tasks.any((task) => task.id == 'offline-task-pregnancy-check'),
+      isFalse,
+    );
+    expect(summary.open, tasks.length);
+  });
 }
 
 class _CapturingAdapter implements HttpClientAdapter {

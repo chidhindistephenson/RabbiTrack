@@ -120,6 +120,57 @@ void main() {
     expect(await queue.pendingCount(), 1);
   });
 
+  test('offline demo can open queued local rabbit detail', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = RabbitRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.create(
+      farmId: 'offline-demo-farm',
+      name: 'Local Rex',
+      sex: 'female',
+      status: 'growing',
+      breed: 'Rex',
+      colour: 'Black',
+      currentLocationId: 'offline-house-1',
+      tagOrTattoo: 'LR-01',
+      notes: 'Offline profile',
+    );
+
+    final rabbits = await repository.list('offline-demo-farm');
+    final local = rabbits.last;
+    final detail = await repository.show(
+      farmId: 'offline-demo-farm',
+      rabbitId: local.id,
+    );
+
+    expect(local.identifier, 'LR-01');
+    expect(detail.name, 'Local Rex');
+    expect(detail.colour, 'Black');
+    expect(detail.currentLocationName, 'House 1');
+    expect(detail.notes, 'Offline profile');
+  });
+
+  test('empty offline farm starts without seeded rabbits', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final repository = RabbitRepository(
+      dio: Dio(BaseOptions(baseUrl: 'http://localhost/api/v1')),
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    expect(await repository.list('offline-empty-farm'), isEmpty);
+  });
+
   test('RabbitRepository queues movement action when offline', () async {
     final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
     addTearDown(() => temp.delete(recursive: true));

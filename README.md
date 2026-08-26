@@ -47,6 +47,10 @@ owner@rabbitrack.local
 secret-password
 ```
 
+Offline Android tester login uses the same password and does not require the
+Laravel API server. See `docs/offline-tester-guide.md` for tester accounts,
+APK paths, and the feedback checklist.
+
 The startup script keeps this demo account, farm, location, and starter rabbits seeded safely, so it can be run again after restarting the machine.
 
 Android emulator API base URL:

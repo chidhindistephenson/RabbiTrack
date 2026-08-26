@@ -32,6 +32,34 @@ void main() {
     expect(adapter.requests.single.data, {'action': 'complete'});
     expect(await queue.pendingCount(), 0);
   });
+
+  test(
+    'OfflineActionQueue clears only actions for the selected farm',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'rabbitrack-queue-test',
+      );
+      addTearDown(() => temp.delete(recursive: true));
+
+      final queue = OfflineActionQueue(directoryProvider: () async => temp);
+      await queue.enqueue(
+        method: 'POST',
+        path: '/farms/farm-1/rabbits',
+        data: {'name': 'Farm one rabbit'},
+      );
+      await queue.enqueue(
+        method: 'POST',
+        path: '/farms/farm-2/rabbits',
+        data: {'name': 'Farm two rabbit'},
+      );
+
+      await queue.clearForFarm('farm-1');
+
+      final actions = await queue.pendingActions();
+      expect(actions, hasLength(1));
+      expect(actions.single.path, '/farms/farm-2/rabbits');
+    },
+  );
 }
 
 class _CapturedRequest {

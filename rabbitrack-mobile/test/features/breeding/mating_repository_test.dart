@@ -83,6 +83,65 @@ void main() {
     expect(await queue.pendingCount(), 1);
   });
 
+  test('offline demo can open queued mating detail', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = MatingRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    final created = await repository.create(
+      farmId: 'offline-demo-farm',
+      doeId: 'offline-doe-0047',
+      buckId: 'offline-buck-0003',
+      matedAt: '2026-08-05',
+      outcome: 'observed',
+      notes: 'Local mating',
+    );
+    await repository.recordPregnancyCheck(
+      farmId: 'offline-demo-farm',
+      matingId: created.id,
+      result: 'pregnant',
+    );
+
+    final detail = await repository.show(
+      farmId: 'offline-demo-farm',
+      matingId: created.id,
+    );
+
+    expect(detail.id, created.id);
+    expect(detail.doeIdentifier, 'DOE-0047');
+    expect(detail.status, 'pregnant');
+    expect(detail.pregnancyChecks.single.result, 'pregnant');
+  });
+
+  test('offline demo delete hides mating locally', () async {
+    final temp = await Directory.systemTemp.createTemp('rabbitrack-queue-test');
+    addTearDown(() => temp.delete(recursive: true));
+    final queue = OfflineActionQueue(directoryProvider: () async => temp);
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))
+      ..httpClientAdapter = _OfflineAdapter();
+    final repository = MatingRepository(
+      dio: dio,
+      token: 'offline-demo-owner',
+      offlineQueue: queue,
+    );
+
+    await repository.delete(
+      farmId: 'offline-demo-farm',
+      matingId: 'offline-mating-001',
+    );
+
+    final matings = await repository.list('offline-demo-farm');
+
+    expect(matings.any((mating) => mating.id == 'offline-mating-001'), isFalse);
+  });
+
   test('recordPregnancyCheck sends result and notes', () async {
     final adapter = _CapturingAdapter();
     final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'))

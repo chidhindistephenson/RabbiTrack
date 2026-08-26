@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api_error_messages.dart';
 import '../../shared/offline_action_queue.dart';
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_repository.dart';
 import 'rabbit_models.dart';
@@ -35,6 +36,25 @@ class RabbitRepository {
     String? status,
     String? breed,
   }) async {
+    if (_isOfflineDemo) {
+      return [
+        if (isOfflineDemoFarm(farmId))
+          ...offlineDemoRabbits(
+            search: search,
+            sex: sex,
+            status: status,
+            breed: breed,
+          ),
+        ...await _pendingOfflineRabbits(
+          farmId,
+          search: search,
+          sex: sex,
+          status: status,
+          breed: breed,
+        ),
+      ];
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/rabbits',
       queryParameters: {
@@ -132,6 +152,13 @@ class RabbitRepository {
     required String farmId,
     required String rabbitId,
   }) async {
+    if (_isOfflineDemo) {
+      final rabbit = await _offlineRabbitDetail(farmId, rabbitId);
+      if (rabbit != null) {
+        return rabbit;
+      }
+    }
+
     final response = await dio.get<Map<String, dynamic>>(
       '/farms/$farmId/rabbits/$rabbitId',
       options: _authOptions(),
@@ -299,5 +326,252 @@ class RabbitRepository {
 
   Map<String, dynamic> _authHeaders() {
     return {'Authorization': 'Bearer $token'};
+  }
+
+  bool get _isOfflineDemo => token?.startsWith('offline-demo-') == true;
+
+  Future<List<RabbitSummary>> _pendingOfflineRabbits(
+    String farmId, {
+    String? search,
+    String? sex,
+    String? status,
+    String? breed,
+  }) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/rabbits',
+        ) ??
+        const [];
+    final normalizedSearch = search?.trim().toLowerCase();
+
+    return actions.map((action) => _summaryFromCreateAction(action)).where((
+      rabbit,
+    ) {
+      final matchesSearch =
+          normalizedSearch == null ||
+          normalizedSearch.isEmpty ||
+          [
+            rabbit.identifier,
+            rabbit.name,
+            rabbit.breed,
+            rabbit.currentLocationName,
+          ].whereType<String>().any(
+            (value) => value.toLowerCase().contains(normalizedSearch),
+          );
+      final matchesSex = sex == null || sex.isEmpty || rabbit.sex == sex;
+      final matchesStatus =
+          status == null || status.isEmpty || rabbit.status == status;
+      final matchesBreed =
+          breed == null || breed.isEmpty || rabbit.breed == breed;
+
+      return matchesSearch && matchesSex && matchesStatus && matchesBreed;
+    }).toList();
+  }
+
+  Future<RabbitDetail?> _offlineRabbitDetail(
+    String farmId,
+    String rabbitId,
+  ) async {
+    final created = await _pendingOfflineRabbitDetail(farmId, rabbitId);
+    final starter = isOfflineDemoFarm(farmId)
+        ? offlineDemoRabbitDetail(rabbitId)
+        : null;
+    final base = created ?? starter;
+    if (base == null) {
+      return null;
+    }
+
+    return _applyPendingRabbitActions(farmId, base);
+  }
+
+  Future<RabbitDetail?> _pendingOfflineRabbitDetail(
+    String farmId,
+    String rabbitId,
+  ) async {
+    final actions =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/rabbits',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    for (final action in actions) {
+      final summary = _summaryFromCreateAction(action);
+      if (summary.id != rabbitId) {
+        continue;
+      }
+
+      final data = action.data;
+      final locationId = data['current_location_id'] as String?;
+      final location = locationId == null
+          ? null
+          : offlineDemoLocationDetail(locationId);
+      final motherId = data['mother_id'] as String?;
+      final fatherId = data['father_id'] as String?;
+      final mother = motherId == null
+          ? null
+          : offlineDemoRabbitDetail(motherId);
+      final father = fatherId == null
+          ? null
+          : offlineDemoRabbitDetail(fatherId);
+
+      return RabbitDetail(
+        id: summary.id,
+        identifier: summary.identifier,
+        name: summary.name,
+        sex: summary.sex,
+        status: summary.status,
+        breed: summary.breed,
+        dateOfBirth: summary.dateOfBirth,
+        colour: data['colour'] as String?,
+        currentLocationId: locationId,
+        currentLocationName: location?.name,
+        weightValue: data['weight_value'] as String?,
+        weightUnit: data['weight_unit'] as String?,
+        tagOrTattoo: data['tag_or_tattoo'] as String?,
+        mother: mother == null
+            ? null
+            : RabbitParent(
+                id: mother.id,
+                identifier: mother.identifier,
+                name: mother.name,
+              ),
+        father: father == null
+            ? null
+            : RabbitParent(
+                id: father.id,
+                identifier: father.identifier,
+                name: father.name,
+              ),
+        movements: const [],
+        notes: data['notes'] as String?,
+      );
+    }
+
+    return null;
+  }
+
+  Future<RabbitDetail> _applyPendingRabbitActions(
+    String farmId,
+    RabbitDetail base,
+  ) async {
+    var current = base;
+
+    final updates =
+        await offlineQueue?.pendingActionsFor(
+          method: 'PATCH',
+          path: '/farms/$farmId/rabbits/${base.id}',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    for (final action in updates) {
+      current = _copyDetailWith(current, action.data);
+    }
+
+    final moves =
+        await offlineQueue?.pendingActionsFor(
+          method: 'POST',
+          path: '/farms/$farmId/rabbits/${base.id}/movements',
+        ) ??
+        const <QueuedOfflineAction>[];
+
+    for (final action in moves) {
+      final locationId = action.data['to_location_id'] as String?;
+      final location = locationId == null
+          ? null
+          : offlineDemoLocationDetail(locationId);
+      current = RabbitDetail(
+        id: current.id,
+        identifier: current.identifier,
+        sex: current.sex,
+        status: current.status,
+        movements: [
+          ...current.movements,
+          RabbitMovementSummary(
+            id: 'local-${action.createdAt.microsecondsSinceEpoch}',
+            fromLocation: current.currentLocationName,
+            toLocation: location?.name ?? locationId,
+            movedAt: action.createdAt.toIso8601String(),
+            reason: action.data['reason'] as String?,
+            notes: action.data['notes'] as String?,
+          ),
+        ],
+        name: current.name,
+        breed: current.breed,
+        dateOfBirth: current.dateOfBirth,
+        currentLocationId: locationId ?? current.currentLocationId,
+        currentLocationName: location?.name ?? current.currentLocationName,
+        colour: current.colour,
+        weightValue: current.weightValue,
+        weightUnit: current.weightUnit,
+        tagOrTattoo: current.tagOrTattoo,
+        mother: current.mother,
+        father: current.father,
+        notes: current.notes,
+      );
+    }
+
+    return current;
+  }
+
+  RabbitDetail _copyDetailWith(
+    RabbitDetail current,
+    Map<String, dynamic> data,
+  ) {
+    return RabbitDetail(
+      id: current.id,
+      identifier: current.identifier,
+      sex: data['sex'] as String? ?? current.sex,
+      status: data['status'] as String? ?? current.status,
+      movements: current.movements,
+      name: data.containsKey('name') ? data['name'] as String? : current.name,
+      breed: data.containsKey('breed')
+          ? data['breed'] as String?
+          : current.breed,
+      dateOfBirth: data.containsKey('date_of_birth')
+          ? data['date_of_birth'] as String?
+          : current.dateOfBirth,
+      currentLocationId: data.containsKey('current_location_id')
+          ? data['current_location_id'] as String?
+          : current.currentLocationId,
+      currentLocationName: current.currentLocationName,
+      colour: data.containsKey('colour')
+          ? data['colour'] as String?
+          : current.colour,
+      weightValue: data.containsKey('weight_value')
+          ? data['weight_value'] as String?
+          : current.weightValue,
+      weightUnit: data.containsKey('weight_unit')
+          ? data['weight_unit'] as String?
+          : current.weightUnit,
+      tagOrTattoo: data.containsKey('tag_or_tattoo')
+          ? data['tag_or_tattoo'] as String?
+          : current.tagOrTattoo,
+      mother: current.mother,
+      father: current.father,
+      notes: data.containsKey('notes')
+          ? data['notes'] as String?
+          : current.notes,
+    );
+  }
+
+  RabbitSummary _summaryFromCreateAction(QueuedOfflineAction action) {
+    final data = action.data;
+    final localId = 'local-${action.createdAt.microsecondsSinceEpoch}';
+    return RabbitSummary(
+      id: localId,
+      identifier:
+          data['tag_or_tattoo'] as String? ?? _pendingIdentifier(localId),
+      name: data['name'] as String?,
+      sex: data['sex'] as String? ?? 'unknown',
+      breed: data['breed'] as String?,
+      dateOfBirth: data['date_of_birth'] as String?,
+      status: data['status'] as String? ?? 'growing',
+    );
+  }
+
+  String _pendingIdentifier(String localId) {
+    return 'LOCAL-${localId.split('-').last.substring(0, 6)}';
   }
 }

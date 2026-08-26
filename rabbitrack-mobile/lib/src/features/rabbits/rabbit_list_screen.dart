@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../shared/app_state.dart';
 import '../../shared/rabbit_icon.dart';
 import '../../theme/rabbitrack_colors.dart';
+import '../litters/litter_list_screen.dart';
 import 'rabbit_controller.dart';
 import 'rabbit_list_options.dart';
 import 'rabbit_models.dart';
@@ -19,7 +20,72 @@ class RabbitListScreen extends ConsumerStatefulWidget {
   ConsumerState<RabbitListScreen> createState() => _RabbitListScreenState();
 }
 
-class _RabbitListScreenState extends ConsumerState<RabbitListScreen> {
+class _RabbitListScreenState extends ConsumerState<RabbitListScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_handleTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rabbits'),
+        backgroundColor: RabbiTrackColors.forestGreen,
+        foregroundColor: RabbiTrackColors.cream,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: RabbiTrackColors.cream,
+          unselectedLabelColor: RabbiTrackColors.mintGreen,
+          indicatorColor: RabbiTrackColors.warmTan,
+          tabs: const [
+            Tab(text: 'Rabbits'),
+            Tab(text: 'Litters'),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: switch (_tabController.index) {
+          1 => () => context.push('/litters/new'),
+          _ => () => context.push('/rabbits/new'),
+        },
+        icon: const Icon(Icons.add),
+        label: Text(_tabController.index == 1 ? 'Kindling' : 'Rabbit'),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: const [_RabbitListContent(), LitterListContent()],
+      ),
+    );
+  }
+}
+
+class _RabbitListContent extends ConsumerStatefulWidget {
+  const _RabbitListContent();
+
+  @override
+  ConsumerState<_RabbitListContent> createState() => _RabbitListContentState();
+}
+
+class _RabbitListContentState extends ConsumerState<_RabbitListContent> {
   final _searchController = TextEditingController();
   Timer? _searchDebounce;
 
@@ -72,47 +138,34 @@ class _RabbitListScreenState extends ConsumerState<RabbitListScreen> {
     final rabbits = ref.watch(rabbitListProvider);
     final filters = ref.watch(rabbitListFiltersProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rabbits'),
-        backgroundColor: RabbiTrackColors.forestGreen,
-        foregroundColor: RabbiTrackColors.cream,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/rabbits/new'),
-        icon: const Icon(Icons.add),
-        label: const Text('Rabbit'),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(rabbitListProvider.future),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-          children: [
-            _RabbitFilters(
-              searchController: _searchController,
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(rabbitListProvider.future),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        children: [
+          _RabbitFilters(
+            searchController: _searchController,
+            filters: filters,
+            onReset: _resetFilters,
+          ),
+          const SizedBox(height: 14),
+          rabbits.when(
+            data: (items) => _RabbitResults(
+              items: items,
               filters: filters,
               onReset: _resetFilters,
             ),
-            const SizedBox(height: 14),
-            rabbits.when(
-              data: (items) => _RabbitResults(
-                items: items,
-                filters: filters,
-                onReset: _resetFilters,
-              ),
-              error: (error, stackTrace) => AppState(
-                icon: Icons.cloud_off_outlined,
-                title: 'Could not load rabbits',
-                message:
-                    'Check that the API server is running, then try again.',
-                actionLabel: 'Retry',
-                onAction: () => ref.invalidate(rabbitListProvider),
-                minHeight: 320,
-              ),
-              loading: () => const _RabbitResultsLoading(),
+            error: (error, stackTrace) => AppState(
+              icon: Icons.cloud_off_outlined,
+              title: 'Could not load rabbits',
+              message: 'Check that the API server is running, then try again.',
+              actionLabel: 'Retry',
+              onAction: () => ref.invalidate(rabbitListProvider),
+              minHeight: 320,
             ),
-          ],
-        ),
+            loading: () => const _RabbitResultsLoading(),
+          ),
+        ],
       ),
     );
   }

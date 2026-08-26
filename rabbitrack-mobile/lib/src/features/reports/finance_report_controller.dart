@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/offline_demo_data.dart';
 import '../auth/auth_controller.dart';
 import 'finance_report_models.dart';
 import 'finance_report_repository.dart';
@@ -10,6 +11,14 @@ final monthlyFinanceReportProvider =
       final farm = session?.selectedFarm;
 
       if (farm == null) {
+        return const MonthlyFinanceReport(currency: 'USD', months: []);
+      }
+
+      if (isOfflineDemoSession(session) && isOfflineDemoFarm(farm.id)) {
+        return offlineDemoFinanceReport(DateTime.now());
+      }
+
+      if (isOfflineDemoSession(session) && isOfflineEmptyFarm(farm.id)) {
         return const MonthlyFinanceReport(currency: 'USD', months: []);
       }
 
