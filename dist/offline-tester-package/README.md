@@ -46,3 +46,21 @@ Before sending the APK:
 3. Send the login credentials.
 4. Ask the tester to complete the feedback form.
 5. Ask them to report any API/server error messages with screenshots.
+
+## Prepare Local Package
+
+After an APK has already been built, prepare a local share folder without
+running another build:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\prepare-offline-tester-package.ps1
+```
+
+To include all APK variants:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\prepare-offline-tester-package.ps1 -IncludeAllApks
+```
+
+Copied APKs, copied docs, and the package manifest are local share artifacts and
+are intentionally ignored by git.

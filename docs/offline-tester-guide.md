@@ -10,6 +10,12 @@ Use the APK that matches the device:
 - Older ARM Android phones: `rabbitrack-mobile/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk`
 - Android emulator on x64: `rabbitrack-mobile/build/app/outputs/flutter-apk/app-x86_64-release.apk`
 
+You can also prepare a local share folder after building by running:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\prepare-offline-tester-package.ps1
+```
+
 ## Offline Login
 
 All offline test accounts use the same password:
