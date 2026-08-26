@@ -60,7 +60,7 @@ Please test the normal farm workflow:
 
 ## Feedback Questions
 
-Ask testers:
+Ask testers to fill in `docs/tester-feedback-form.md`, or use these quick questions:
 
 - Which workflow felt easiest?
 - Which workflow felt confusing?
