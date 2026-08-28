@@ -16,6 +16,9 @@ You can also prepare a local share folder after building by running:
 powershell -ExecutionPolicy Bypass -File .\scripts\prepare-offline-tester-package.ps1
 ```
 
+Before sharing a tester APK, run the non-build QA checks in
+`docs/offline-qa-checklist.md`.
+
 ## Offline Login
 
 All offline test accounts use the same password:

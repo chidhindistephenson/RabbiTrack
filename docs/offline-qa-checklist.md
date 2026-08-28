@@ -2,6 +2,18 @@
 
 Use this checklist before sending a tester APK to a farm user.
 
+Run the automated non-build checks from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-offline-mobile-checks.ps1
+```
+
+If the analyzer gets slow on a low-resource machine, run only the focused tests:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-offline-mobile-checks.ps1 -SkipAnalyze
+```
+
 ## Setup
 
 - Install the latest split APK for the device.
