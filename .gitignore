@@ -12,6 +12,9 @@ vendor/
 build/
 .dart_tool/
 
+# Local release/share artifacts
+dist/*.zip
+
 # IDEs
 .idea/
 .vscode/
@@ -19,4 +22,3 @@ build/
 # Local service data
 postgres-data/
 redis-data/
-
